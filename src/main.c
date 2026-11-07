@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include "cusum_detector.h"
 
 /* ── UART (unchanged) ─────────────────────────────────────────────── */
 #define UART0_BASE    0x50200000
@@ -150,14 +151,14 @@ static void stage_signature_verify(uint32_t cp_id) {
     t1 = systick_elapsed();
 
     /* Sub-stage B: public key load + modular reduction simulation */
-    for (int i = 0; i < 300; i++){
-        x ^= (x * 31337U) >> 8;
-
-        #ifdef GLITCH_ATTACK
-            /* SIMULATED FAULT: Voltage glitch drops the loop counter */
-            if (i == 100) break;
-        #endif
-    } 
+    #ifndef GLITCH_ATTACK
+        /* Normal execution: full loop */
+        for (int i = 0; i < 300; i++) x ^= (x * 31337U) >> 8;
+    #else
+        /* GLITCH ATTACK: Skip ENTIRE sub-stage B */
+        /* Extreme fault: completely bypasses security check */
+        /* Creates ~300 cycle reduction (50% severity on sub_b) */
+    #endif 
 
 
     t2 = systick_elapsed();
@@ -201,9 +202,14 @@ int main(void)
     systick_init();
 
     uart_init();
-    uart_println("=== PMU BOOTROM STUB v0.2 ===");
+    uart_println("=== PMU BOOTROM STUB v0.3 ===");
     uart_println("Counter: SysTick (processor clock, 24-bit)");
     uart_println("Features: elapsed_cycles | sub_a | sub_b | sub_c");
+    uart_println("Detector: CUSUM (embedded, real-time)");
+
+    /* Initialize CUSUM detector */
+    cusum_state_t detector;
+    cusum_init(&detector);
 
     /* Checkpoint 0: boot start baseline
      * Note: Includes UART init overhead (~400-1000 cycles)
@@ -218,6 +224,25 @@ int main(void)
     /* Stage 2: signature verify — primary attack target */
     stage_signature_verify(2);
     pmu_checkpoint(2);
+
+    /* ── CHECK FOR ATTACK at CP2 (primary glitch target) ── */
+    uint32_t cp2_features[3] = {
+        boot_log[2].sub_a,
+        boot_log[2].sub_b,
+        boot_log[2].sub_c
+    };
+
+    /* ── CUSUM Detection ── */
+    if (cusum_update(&detector, cp2_features, 2)) {
+        uart_println("\r\n!!! ATTACK DETECTED at CP2 !!!");
+        uart_print("Mahalanobis distance exceeded threshold");
+        uart_println("\r\nHALTING BOOT - Security violation");
+
+        /* Security response: halt and lockup */
+        while (1) {
+            /* In real system: erase keys, disable peripherals */
+        }
+    }
 
     /* Stage 3: key derivation */
     stage_key_derivation(3);

@@ -11,7 +11,7 @@ CFLAGS = -mcpu=$(MACH) -mthumb -O0 -g -Wall -fno-builtin
 LDFLAGS = -nostartfiles -nostdlib -T $(SRC_DIR)/linker.ld
 
 # Source and Object files
-SRCS = $(SRC_DIR)/startup.c $(SRC_DIR)/main.c
+SRCS = $(SRC_DIR)/startup.c $(SRC_DIR)/main.c $(SRC_DIR)/cusum_detector.c
 OBJS = $(SRCS:.c=.o)
 TARGET = app.elf
 
