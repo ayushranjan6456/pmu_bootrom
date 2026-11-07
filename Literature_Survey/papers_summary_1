@@ -1,0 +1,1354 @@
+PAPER 1: A Review on Evaluation and Configuration of Fault
+Injection Attack Instruments to Design Attack
+Resistant MCU-Based IoT Applications
+
+Abstract: The Internet-of-Things (IoT) has gained significant importance in all aspects of daily life,
+and there are many areas of application for it. Despite the rate of expansion and the development of
+infrastructure, such systems also bring new concerns and challenges. Security and privacy are at
+the top of the list and must be carefully considered by designers and manufacturers. Not only do
+the devices need to be protected against software and network-based attacks, but proper attention
+must also be paid to recently emerging hardware-based attacks. However, low-cost unit software
+developers are not always sufficiently aware of existing vulnerabilities due to these kinds of attacks.
+To tackle the issue, various platforms are proposed to enable rapid and easy evaluation against
+physical attacks. Fault attacks are the noticeable type of physical attacks, in which the normal and
+secure behavior of the targeted devices is liable to be jeopardized. Indeed, such attacks can cause
+serious malfunctions in the underlying applications. Various studies have been conducted in other
+research works related to the different aspects of fault injection. Two of the primary means of fault
+attacks are clock and voltage fault injection. These attacks can be performed with a moderate level
+of knowledge, utilizing low-cost facilities to target IoT systems. In this paper, we explore the main
+parameters of the clock and voltage fault generators. This can help hardware security specialists to
+develop an open-source platform and to evaluate their design against such attacks. The principal
+concepts of both methods are studied for this purpose. Thereafter, we conclude our paper with the
+need for such an evaluation platform in the design and production cycle of embedded systems and
+IoT devices.
+Keywords: hardware security; fault attack; hardware security evaluation platform; glitch injectors
+1. Introduction
+In recent years, the Internet of Things (IoT) concept has enabled embedded systems to communicate
+via internet protocols to coordinate decisions [1]. IoT can provide smart services for end-users and
+eases the use of distributed systems. The broad adoption of IoT-enabled embedded devices highlights
+the need for safe functionality as well as data security and confidentiality, specifically when they are
+employed in safety-critical applications [1–3]. Typically, the main target of adversaries is to discover
+‘Achilles’ heels’ in the system so as to make effective attacks against the application running on the
+processing unit. This can lead to a breakdown of the system’s normal functionality, disruption of
+the execution of program flow, and the gaining of unauthorized access or leakage of highly secured
+information. Therefore, manufacturers or designers shouldadopt a set of guidelines to ensure the
+Electronics 2020, 9, 1153; doi:10.3390/electronics9071153 www.mdpi.com/journal/electronics
+
+secure development and deployment of these devices while striving to provide a large variety of
+efficient and free services to the users.
+Many network or software-based vulnerabilities have been discussed in the literature [4].
+Subsequently, numerous countermeasures are proposed and employed to secure the systems against
+the mentioned vulnerabilities [3,5,6]. However, with the advent of hardware-based attacks in the
+recent decade, achieving a high level of security has become more challenging, and attackers can
+easily subvert many types of protections and encryptions [7–11]. Therefore, protecting firmware and
+data within IoT devices against these attacks is of decisive importance. This issue becomes even
+more important when the adversaries target safety-critical embedded systems to exploit various
+vulnerabilities efficiently and pose significant risks by performing these attacks [12]. Nevertheless,
+time-to-market and IoT production costs take priority over prudent security practices, and in most
+cases, hardware-based vulnerabilities have not yet been well explored by the embedded software
+developers [13]. To systematically address this issue in IoT system design, there must be different
+evaluation stages which cover hardware-based threats as well as software and network ones.
+A hardware security assessment can be performed either by applying practical techniques, including
+simulations and experimental techniques, or by using mathematical analysis methods [12,14–16].
+Today’s simulation tools have extensive capabilities, and they can be used as highly accurate, flexible,
+and low-cost appliances in primary evaluation. However, in the domain of hardware-based attacks,
+since different environmental parameters are involved, it is not possible to describe and study any
+arbitrary attack in the simulation environment [17]. Moreover, using hardware simulators and accessing
+the processor hardware description is not feasible for the software developers. Another approach of
+security assessment is by mathematical analysis, which is also essential for primary appraisal steps [15].
+Nevertheless, this technique cannot guarantee a high-quality assessment against hardware-based attacks
+that target post-implemented devices [14]. Technical considerations—including environmental effects,
+process variations, and subversive influences—still have a place [17]. The most considered technique for
+hardware security evaluation is based on experimental analysis that can provide a physical environment
+for investigating and measuring the consequences of possible risks [18–20]. To this end, an easy to use
+and practical evaluation platform for the embedded-software developer is a fundamental requirement in
+order to emulate, monitor, manage, and analyze vulnerabilities in the code.
+In the hardware security domain, one of the most prominent and powerful tools in the hands
+of adversaries is physical attack [21,22]. Physical attacks are the type of attack in which the attacker
+has access to the targeted device. These attacks can help the adversary to intrude into the IoT [7,9,12].
+Physical attacks are divided into two categories, namely, passive and active attacks [12,23]. In passive
+attacks, the targeted device behaves normally, and the attacker ’s main goal is not to leave any trace or
+manipulate the target’s regular functioning [24]. In point of fact, such attacks are based on correlating
+the system activity with an observable physical parameter such as power consumption, execution
+time, or electromagnetic emission. Correlation power analysis against cryptographic operation is a
+well-known example that allows cryptographic key identification by physical measurement [25,26].
+As the second category, active attacks are a type of attack in which the adversary actively tampers
+the target device by stressing its available input channels. Moreover, variations in environmental
+parameters, such as temperature, can also be used to induce faulty behaviors and cause disruptions [10].
+One of the well-known types of active attacks widely studied during the last two decades is fault
+injection attack (FIA). FIAs are usually accomplished by manipulating either environmental parameters
+or inputs [27–29]. FIA has been demonstrated to be a powerful technique to reveal secret data with
+a small number of experiments [12,30]. Through FIAs, intruders can accomplish several objectives.
+Among these objectives, the two principal ones are: (1) To cause erroneous outputs and to disturb the
+normal behavior through bypassing specific operations on some occasions [7,8,27]; and (2) to extract
+secret information by using faulty outputs [30,31].
+Fault injection attacks can be further classified into three different categories, namely, invasive,
+non-invasive, and semi-invasive [28]. Invasive attacks are the type of intrusions performed by
+Electronics 2020, 9, 1153 3 of 27
+de-packaging the integrated circuit (IC) and modifying the physical properties to do some probing.
+Invasive attacks—such as micro-probing, laser, or optical fault injection—are the strongest physical
+attacks without imposing any restrictions on accessing the inside of the chips [21]. These kinds of
+attacks are very powerful in precise space-time positioning, and they can reveal considerable secret
+information from internal parts of the chip to the attackers. However, they are expensive, mostly
+irreversible, and complicated. In addition, they have to be performed by qualified specialists in
+laboratories equipped with special devices. They are usually applied against very secure devices
+such as smartcards or complex commercial off-the-shelves (COTS) components, in which the target is
+in the form of industrial products, and the attacker usually has more features and knowledge [32].
+Nonetheless, they are not proper methods for individual IoT hackers because they are too costly for
+them, and also they do not have access to wide-range facilities. Non-invasive attacks are the type
+of non-destructive attacks that can be accomplished by only utilizing pin-probing or bus-snooping
+without damaging the package [21]. Two of the simplest non-invasive fault attacks are tampering
+the device clock signal and/or the supply voltage, the so-called clock and voltage glitch attacks [12].
+In particular, non-invasive attacks are more threatening than invasive attacks for IoT devices. This is
+for three main reasons: (1) since this kind of attack does not require any physical tampering, the owner
+of the targeted device might not notice the attack and trust in functionality and information security.
+(2) They can be reproduced and updated using low-cost and existing types of equipment, even in
+a small laboratory [25,33]. (3) They have proven that a high success rate can be achieved in a short
+time [11]. The semi-invasive attack is a type of FIA that stands between invasive and non-invasive
+attacks [34]. This type of attack can involve de-packaging the IC layers to gain access to the internal
+surface of the target, but normally, the passivation layer remains unimpaired. For instance, optical
+fault injection is a semi-invasive attack, in which the protection layer of the device has to be ruined [34].
+In this paper, we focus on the voltage and clock glitches because they do not need package modification,
+they are low cost, and precise in producing the intended results. Moreover, they are the most used
+techniques in attacks against IoT devices with medium security.
+Security evaluation against fault attacks is a key step in the design of any IoT device that
+needs to adhere to specific security requirements [16,35]. To this end, hardware security specialists
+should design an efficient evaluation platform for the embedded software developers of critical IoTs.
+These developers need to employ and use these platforms to investigate existing vulnerabilities.
+Usually, the experimental-based evaluation platforms for FIAs mimic the real fault attacks. Currently,
+there is a large and complicated realm of known fault attacks in the literature, which makes it difficult
+for a hardware security engineer to provide software designers with an applicable and accurate
+evaluation platform to test their products against attacks. Reference [36] surveys some of the fault
+injection techniques on cryptographic applications including differential fault analysis (DFA), collision
+fault analysis (CFA), and ineffective fault analysis (IFA). Then, it provides countermeasures which
+can somehow mitigate the impacts of the fault injection attack. Reference [16] reviews and compares
+the features of various fault injection approaches in digital circuits. They focus on three main type of
+software-based, emulation-based, and hardware-based fault injection approaches. Then, they explore
+the requirements for advanced hardware based attacks. Reference [22] studies the hardware-based
+fault attacks on software with emphasize on the scope of embedded systems. It discusses the main
+techniques for fault injection attack and the behavior of the system in front of them. Then it analyzes the
+fault propagation through the architecture and the embedded software. None of previous survey papers
+have a detailed focus on having a low-cost and easy to implement clock and voltage fault injection
+instrument. Therefore, in this work, we comprehensively review the most important instruments
+for clock and voltage glitches. This paper reviews different existing security evaluation platforms
+and compares their main characteristics. This can specifically help those who attempt to design an
+evaluation platform that covers the most recent required features and characteristics of fault injection
+methods. It should also be noted that these features are highly dependent on the attacker’s target.
+For this purpose, in this paper, we first determine the main features of each fault injection method and
+Electronics 2020, 9, 1153 4 of 27
+then study and compare the related works for each approach. Finally, we define the related characteristics
+of an efficient fault injection evaluation platform, according to the studied works. This can help hardware
+security engineers to better understand the main features of a fault injection evaluation platform and
+to improve practical fault injectorsto be used by software developers. In conclusion, this paper aims
+to highlight the best-presented ideas for clock and voltage fault attack evaluation configurations and
+designs. Comparing these ideas and platforms, we can define the properties of a framework, which
+security engineers need to develop or customize based on their applications.
+This paper is organized as follows: Section 2 describes the basic concepts regarding clock and
+voltage glitching fault attacks and defines all the main parameters related to the fault injectors.
+Sections 3 and 4 review the state of the art of clock and voltage fault injectors and compare them by
+using different metrics. Section 5 outlines the characteristics of an efficient evaluation platform for IoT
+devices. Finally, Section 6 presents the conclusion of this work.
+2. Preliminaries and Basic Concepts
+Accurate design of a comprehensive hardware-based security assessment tool that can be used
+by software developers calls for extraction of the attack attributes, i.e., clock and voltage glitch;
+characteristics; and requirements. In this paper, we assume that secure embedded software developers
+consider that the underlying hardware has no vulnerabilities. In other words, they assume that
+designing secure software is sufficient to guarantee the security of the entire system, and they do
+not consider hardware-level malfunction risks. Below, we first present the basic set-up for the fault
+injection attack. Obviously, the fault generator is the most important part of a fault injection system.
+Therefore, in this paper, we elaborate first on the main characteristics of the generator, which affect
+the success rate of the attacks. In order to generate operative faults in the system, the generator
+must be able to produce effective manipulations that can intrude into the systems. For this reason,
+we review the basic implications of why and how changes in the clock and voltage inputs lead to errors
+in the target system. The attack scenarios may have different characteristics based on the considered
+vulnerabilities in the application running on the target system. When the necessary characteristics are
+covered, successful attacks can be implemented even at low cost and with moderate knowledge.
+Among various types of physical attacks, we have focused on fault injection as one of the most
+important types of semi-invasive attacks. Figure 1 shows the experimental set-up for the fault injection
+system. It includes a target board (device under test), a fault generator, and a controller computer.
+Generally, in the hardware-controlled fault injection techniques, a separate external fault generator
+is used to perform the physical attack on the target and to induce faults in the running application.
+It is essential that the attacker produces well-controlled faults in the generator in order to achieve
+the desired results. It is, therefore, a challenging procedure to develop a fault generator with a high
+level of accuracy and precision. Several factors determine the applicability and efficiency of a fault
+generator. These factors for the clock and voltage fault attacks include accuracy, development expenses,
+complexity of the system set-up, and user expertise.Electronics 2020, 8, x FOR PEER REVIEW 4 of 27 
+ 
+platform,  according  to  the  studied  works.  This  can  help  hardware  security  engineers  to  better  
+understand the main features of a fault injection evaluation platform and to improve practical fault 
+injectors  to  be  used  by  software  developers.  In  conclusion,  this  paper  aims  to  highlight  the  
+best-presented  ideas  for  clock  and  voltage  fault  attack  evaluation  configurations  and  designs.  
+Comparing these ideas and platforms, we can define the properties of a framework, which security 
+engineers need to develop or customize based on their applications. 
+This paper is organized as follows: Section 2 describes the basic concepts regarding clock and 
+voltage  glitching  fault  attacks  and  defines  all  th
+
+Conclusions
+In this paper, two different approaches of experimental fault injection attack have been studied to
+help hardware security specialists to develop a proper and efficient evaluation platform. Thereafter,
+this platform can be used by embedded software developers. This evaluation platform can help them
+to make their applications robust against low-cost but effective physical attacks. Accordingly, we have
+reviewed the previously proposed clock and voltage glitch generators and categorized them based on
+different parameters that play an important role in the attack process.
+Electronics 2020, 9, 1153 24 of 27
+The effectiveness of the fault injection approaches and the affordable equipment costs motivate the
+designers to propose clock and voltage fault injectors with optimum characteristics. Furthermore, most
+of the important factors—such as complexity, cost, and required knowledge—were discussed, leaving
+the final decision to be made by the hardware security specialists in consideration of these factors.
+The fault injection attacks are becoming more advanced and complicated. This is mainly due to
+more accessibility of the software and hardware of embedded systems in IoT applications. Moreover,
+using artificial intelligence (AI) to learn and predict the fault injection parameters can lead to more
+successful attacks. On the other hand, the countermeasures need to be based on hardware-software
+co-design approach to reduce the bottlenecks between the design of independent hardware and software.
+Furthermore, the countermeasures can be strengthened by using a fault injection database pattern that
+helps the software developers to recognize vulnerable software and to apply the security patch
+
+
+
+
+PAPER 2: An FPGA-Compatible PLL-Based Sensor against Fault Injection Attack
+
+Abstract— Laser based Fault Injection (LFI) and Electro-
+magnetic Fault Injection (EMFI) are powerful techniques com-
+monly for fault injection against security critical circuits. Since
+LFI/EMFI creates faults by incurring high energy disturbances,
+they can be detected in advance by sensing the disturbance using a
+embedded detector. In this paper, a PLL based sensor system for
+detecting laser fault injection is presented. Experiments show a
+high detection rate, with significant power security margin, whilst
+maintaining low hardware cost, on multiple FPGA platforms.
+
+. INTRODUCTION
+Hostile implementation circumstances in security applica-
+tion demand the security-critical circuit to be fortified with a
+strong protection against various attack threats. Fault injec-
+tion attack (FIA) emerges as a critical threat which retrieves
+confidential information by analyzing the faulty behavior of
+security-critical ICs. The injection methods can be global –
+power/clock system glitch disturbance, or more fine-grained –
+laser/EM based fault injection (LFI/EMFI [1]). Among those,
+LFI and EMFI are powerful techniques, capable of inducing
+precise faults. In this work, we present a PLL-based LFI/EMFI
+sensor [2, 3]. The sensor is implemented and tested on mod-
+ern FPGA platforms, which are widely used in security appli-
+cations due to rapidly evolving cryptographic standards. It is
+designed such that the injected disturbance should have more
+significant impact on the sensor than sensitive circuit, thus trig-
+gering the alarm signal ahead. Thanks to the available PLL
+modules in modern FPGA, the sensor remains low-cost and
+easy to implement.
+
+Experimental Results
+The laser setup uses a diode pulse laser station with 20W
+power, and laser spot size of 60×14 μm2as shown in
+Fig. 3(i) [2]. The target platform is a Virtex-5 FPGA in flip-
+chip package. The chip is modified by removing the metal
+heat-sink and thinning the substrate from ≈ 300 μm to ≈ 100
+μm. The target chip is scanned using a motorized X-Y table
+with scan precision of 0.05 μm and varying the laser strength.
+Fig. 4 plots the LFI scan results, where X and Y axes represent
+the coordinates of the plane of the active transistor layer, and
+the Z axis demonstrates the laser power level. Fig. 4(i) plots
+the points where alarm was triggered and the corresponding
+power level. The actual data faults appeared without trigger-
+ing the sensor are plotted in Fig. 4(ii). The sensor can be trig-
+gered with laser power at 64% against 91% for injecting faults
+in the sensitive circuit. The analysis reports detection rate of ≈
+92.82% and a failure rate of ≈ 0.94% [2].
+The EMFI setup targets a Spartan-6 FPGA in frontside (FG)
+package which makes it easier to perform EM injection [3].
+The chip package stays intact as EMI does not need package
+removal. The full setup for EMI test is presented in Fig. 3(ii).
+The motorized stepper table scans the entire chip and generates
+a cartography as a 30 × 30 array. The fault detection capability
+of the EMI countermeasure reports a 100% fault detection as
+shown by a color map in Fig 5(i). The injection power was
+55dBm to impact the sensor as well as the sensitive circuit.
+Few pixels didn’t show detection by sensor but it turned out to
+be fault on I/O pins (Fig. 5(ii)). When tested for sensitivity,
+the sensor needs 19 dBm less injection power than faults in
+sensitive circuit Sensitivity means that the countermeasure is
+
+Fig. 4. Area covering one slice, showing the laser power required to trigger (i)
+the countermeasure, and (ii) data faults.
+
+Fig. 5. EMFI detection map showing the (i) detection rate, (ii)
+undetected faults on Spartan-6 FPGA.
+expected to raise an alarm much before the EM pulse faults the
+sensitive circuit as shown in Fig. 6(ii).
+
+Fig. 6. (i) Detected vs. undetected faults w.r.t. Laser power; (ii) Sensitivity of
+the proposed countermeasure against EMFI.
+
+III. CONCLUDING REMARK
+In this paper, a low-cost sensor system for detecting a mali-
+cious LFI/EMFI into integrated circuit is described. The sensor
+is composed of a watchdog RO and a PLL triggered alarm sig-
+nal. Experimental evaluation on a Virtex-5 (LFI) and a Spartan-
+6 (EMFI) FPGA proves its high sensitivity against malicious
+fault injection. Since PLL primitives have been integrated into
+a wide spectrum of modern ICs, specially FPGA, this system
+can be easily implemented into many security-critical devices
+
+
+
+
+PAPER 3 : Analysis and Design of Clock-glitch
+Fault Injection within an FPGA
+
+Abstract
+In modern cryptanalysis, an active attacker may induce errors during the computation
+of a cryptographic algorithm and exploit the faulty results to extract information about
+the secret key in embedded systems. This kind of attack is called a fault attack. There
+have been various attack mechanisms with different fault models proposed in the literature.
+Among them, clock glitch faults support practically dangerous fault attacks on cryptosys-
+tems. This thesis presents an FPGA-based practical testbed for characterizing exploitable
+clock glitch faults and uniformly evaluating cryptographic systems against them. Con-
+centrating on Advanced Encryption Standard (AES), simulation and experimental results
+illustrates proper features for the clock glitches generated by the implemented on-chip glitch
+generator. These glitches can be injected reliably with acceptably accurate timing. The
+produced faults are random but their effect domain is finely controllable by the attacker.
+These features makes clock glitch faults practically suitable for future possible complete
+fault attacks on AES. This research is important for investigating the viability and analysis
+of fault injections on various cryptographic functions in future embedded systems
+
+
+Introduction
+Security is a major concern in computing, communication systems, and e-commerce among
+others and significant ongoing research is underway to address this concern. Cryptographic
+algorithms such as symmetric ciphers, public-key ciphers, and hash functions are used to
+construct security mechanisms. Modern cryptography relies on the assumption that cryp-
+tography primitives are perfectly secure; however, it is an unproven assumption. For ex-
+ample, public-key cryptosystem is based on the idea of one-way functions–functions which
+are easy to compute but computationally infeasible to invert. But, it has not been proven
+that the functions used in public-key cryptosystem are one-way functions or even whether
+one-way functions really exist. Still, some cryptographic algorithms are unbroken and re-
+main widely used. Hence, some algorithms are assumed to be secure and unbreakable.
+Cryptographic algorithms can be viewed from two perspectives: classical and side chan-
+nel. From a classical perspective, they are perceived as a mathematical object which re-
+ceives a plaintext or message and using a key, transforms the input into a ciphertext or
+vice-versa. The adversaries are assumed to have a complete understanding of the underly-
+ing algorithm and access to both ciphertext and plaintext. In addition, they may have more
+control over the exchanged data between the two parties e.g., by selecting the plaintexts
+in a chosen-plaintext attack, or by selecting the ciphertexts in a chosen-ciphertext attack.
+The attackers are only lacking knowledge of the secret key. This is the black-box view
+depicted in figure 1.1 in which the attacker attempts to solve the underlying problems–
+assumed to be computationally intractable–in the cryptographic protocol by exploiting the
+mathematical specifications without necessarily having to implement the algorithms and
+use the system.
+1
+Figure 1.1: The Black Box view in traditional cryptography
+1.1 Side Channel Attacks
+In the real world, cryptographic protocols have to be implemented in software or hardware
+on a device which interacts with its environment. This interaction with the environment
+can be monitored by the adversary. For example, the device gives information about
+the time or power consumption of operations and produces sounds or electromagnetic
+radiations during the computations. In addition, the device may have some unintentional
+inputs such as voltage or clock frequency which may be modified to create predictable or
+faulty outputs. Such information leakage during the protocols execution is called the side
+channel which is not considered in the classical security model. Figure 1.2 represents the
+cryptographic view including side channels. In side channel analysis (SCA), the adversary
+goes beyond the pure mathematics and takes advantage of side channel information to
+recover the secret key. This kind of attack, which was presented in 1996 by Kocher [33]
+for the first time, works because, the state of the cryptographic device, which is related to
+the secret key, can be correlated with the measured side channel information.
+1.1.1 Classifications of Side Channel Attacks
+Side-channel attacks can be classified into the following three categories where these cat-
+egories are orthogonal i.e. a specific type of attack can be in more than one category
+[49].
+Control over the process: Passive vs. Active
+The first category is based on the level of control over the process execution and divides
+the SCA attacks into passive attacks and active attacks. In a passive attack, the
+attacker does not interfere with the device’s computation and gains information by simply
+observing the device behavior, which is exactly as if there is no attack. Passive attacks are
+2
+Figure 1.2: The Side channel view of the cryptography
+based on the observation and analysis of various measurable side channels including power
+consumption, computation time, and electromagnetic or radio frequency emanation of the
+device. They use the correlation between the operations, processed data and collected
+measures. While in an active attack, the attacker tampers with the functioning device and
+tries to affect its behavior. Active attacks are based on interrupting the algorithm process
+to cause an abnormal behavior or erroneous result that can be exploited to recover the
+secret key.
+Access to the device: Invasive vs. Non-invasive
+Depending on the attack surface (the set of physical, electrical and logical interfaces that
+are exposed to a potential adversary) Anderson et al. in [4] divided the attacks into
+three classes: invasive attacks, semi-invasive attacks and non-invasive attacks.
+Invasive attacks require depackaging the device to have direct access to its components,
+for example, placing a probing needle on a data bus to see the data transfer. A non-
+invasive attack is usually an undetectable and low-cost attack that only uses the side-
+channel information which is externally available. Timing analysis and power consumption
+analysis are in this class. The semi-invasive attack involves depackaging of the device to
+get access to its surface, but does not require electrical contact to the metal layer. For
+example, in a fault induction attack, the attacker may use a laser beam to ionize a device
+and change some of its memories to change the output.
+3
+Analysis process: Simple vs. Differential
+The sampled data in a side-channel attack needs to be analyzed to reveal information
+about the secret key. In the analysis process, if a single side-channel trace is used and
+the secret key is directly related to that trace, the attack is referred to as a simple side
+channel attack (SSCA). While, if due to too much noise in the measurements SSCA
+is not feasible, a differential side channel attack (DSCA) is used. In DSCA many
+traces are used to exploit the correlation between the processed data and the side-channel
+leakage. Since this correlation is usually small, statistical methods are needed to exploit it
+efficiently.
+1.1.2 Fault Attacks
+A fault attack is a fundamentally different kind of side-channel attack. Here, the adver-
+sary induces faults into the device during the computation of a cryptographic algorithm
+and observes its behavior. Other side-channel attacks are passive in which there is no
+tampering with the attacked device. While, a fault attack is an active attack which aims
+at recovering the secret key by altering the computation process and analyzing the faulty
+output or reaction of the system.
+The first successful fault attacks have been reported by Boneh et al. in 1997 [14] and
+later in 2001 on the RSA signature scheme, the Fiat-Shamir and Schnorr identification
+protocols [15]. They injected random hardware faults and showed that an RSA imple-
+mentation based on the Chinese Remainder Theorem (CRT) can be broken using a single
+erroneous RSA signature. A non-CRT implementation of RSA needs a larger number (e.g.
+1000) of erroneous signatures. Their results also illustrates that the secret key can be
+revealed in Fiat-Shamir and Schnorr identification protocols after a small number (e.g.
+10) and a larger number (e.g. 10000) of faulty executions respectively. Fault attack on
+ElGamal, Schnorr and digital signature algorithm (DSA) was presented by Bao et al. in
+1998[9]. Biehl et al. in 2000[11] presented the fault attacks on elliptic curve public-key en-
+cryption. In 1997 Biham and Shamir[12] described fault attacks on the DES symmetric-key
+encryption. Transient faults or glitches were discussed by Anderson and Huhn in 1997[7].
+In 2002 Skorobogatov and Anderson[46] proposed a powerful and practical optical fault
+attack using inexpensive equipment on a smartcard.
+The fault attacks mentioned above indicate that this kind of attack may be practical
+and very realistic to mount, although more advanced knowledge and tools are needed.
+
+
+Thus, these fault attacks may be much more effective and dangerous. Fault attacks can
+break an unprotected system more quickly than any other kind of side-channel attack such
+as power analysis or electromagnetic analysis. For example, the attacker can break RSA-
+CRT with one faulty result, and DES and AES with two. Furthermore, the fault attack
+countermeasures are more costly in terms of chip area. Hence, they must be taken into
+account during the design and test of secure systems and devices
+
+
+2.2 Fault Injection Mechanisms
+In a cryptographic device there are flip flops to define the current state, and combinational
+logic to calculate the next state from the current state in each clock cycle [31]. There are
+also input clock and voltage, transistor current, among others with many analog effects
+that can be used in non-invasive attacks like the following:
+15
+2.2.1 Power Spikes
+Embedded systems such as smartcards need power supply which is provided externally.
+Variations in the supply voltage can impede the device's functionality with misinterpreta-
+tion or omission of instructions as well as data misread. It enables an adversary to both
+tamper with the power feeding and measuring the power consumption.
+According to the ”Electronic signals and transmission protocols” standard, ISO/IEC
+7816-3, a smartcard must tolerate the power supply variation of ±10% of the standard
+voltage. For variations higher than 10%, the system no longer works properly. Spikes
+are short massive variations of the power supply and can be used to induce faults during
+the computation of the smartcard. Spikes do not require a modification of the device
+itself but provoke faults by modifying the working conditions. They have different effects
+depending on different parameters including time, voltage value, and the transition shape.
+A spike attack is a non-invasive, or at least semi-invasive, method which can lead to wrong
+computation result when the device is still able to complete the computation. Experimental
+results for injecting faults into smartcards using spikes are described in details in [8].
+2.2.2 Optical Fault Injection
+Due to the photoelectric effects, the semiconductor transistors and the EEPROM are
+sensitive to lasers and ion-beams and the memory cells can be set to 0[46]. In [31], they
+depackage the device and use an optical microscope to reconstruct the layout and apply
+invasive fault attacks including laser cutting and focused ion-beam manipulation to recover
+the covered data. But it was not sufficiently precise to change the chosen bits. The attacker
+needs to be able to control the light's wavelength, energy, location, and emission time. In
+2008, Hutter at al. [24] described a precise locolized fault injection method with affordable
+equipments which enables them to interfere data, control lines, memory blocks and driver
+circuits. This method is the underlying method used in a fault analysis attack against
+HB+ authentication protocol used in radio-frequency identification (RFID) tags [16]. In
+2010, Agoyan et al.[5] showed that it is possible to reproduce single-bit faults on SRAM
+which was considered unfeasible before. In addition, today the laser attack can be applied
+to the back side of the chip where there is no protecting mechanism.
+16
+Figure 2.1: An smartcard contact assignment according to ISO 7816-2 [1]
+2.2.3 Electromagnetic Attack
+Emitting a powerful magnetic pulse close to the silicon area of the cryptographic device
+is another way to inject faults. This emission creates local current called Eddy current
+on the component's surface. Eddy current can modify the number of electrons inside a
+transistor's oxide grid and change its threshold voltage. As a result it impedes the transis-
+tor's switching and ensures the attacker that a memory cell contains the value 1 or 0[38].
+Another usage of the Eddy current is to heat a material uniformly and hence, to generate
+transient or permanent faults by inducing the heat.
+This attack can be performed on small parts of the device if the attacker has the
+knowledge of the layout of the device to control the targeted area precisely. As reported
+in [40], Eddy current can enable the adversary to induce faults very accurately and even
+set or reset the individual selected bits. Hence, it has been considered a practical method
+[25].
+2.2.4 Clock Glitches
+As shown in figure 2.1, cryptographic devices such as smartcards have an external clock
+signal. According to the ISO/IEC 7816-3, a smartcard must work properly in the clock
+signal with voltage variation in the range of 0.7 Vcc to Vcc for the high signal and 0 to 0.5
+Vcc for low signal. Another constraint is to tolerate the clock rise and the clock fall times
+of 9% from the period cycle. A deviation of the external clock which is out of the specified
+tolerance scope is called glitch. Glitches may be generated by temporarily increasing the
+clock frequency in one or a half cycle. Clock glitch can cause data misread in which the
+circuit samples the input before it gets the new state or reads the values from the data
+bus before being latched into the memory. The other possible effect can be the omission
+17
+of instructions in which the next instruction starts executing before finishing the current
+one. As presented by Agoyan et al. in [6], injecting the fault by clock glitches is currently
+the simplest and most practical fault attack.
+
+5.1 Summary and Discussion
+In this thesis the characteristics of the glitch which generated a fault and the effect of the
+fault was explored. First, the clock glitch faults were injected into an Sbox architecture
+and the post-route timing simulation results confirmed the theoretical expectations. Then,
+an FPGA-based testbed was utilized to inject the glitch fault into an existing full AES.
+The feasibility of fault attacks in practice were examined. Experiments verify that faults
+can be successfully injected utilizing clock glitches generated on the FPGA. A comparison
+of these fault injection experimental results with timing simulation of the AES circuit was
+useful for verification. But unfortunately, neither the timing simulation results nor imple-
+mentation information for executing it were open.
+Based on the simulation approach, an Sbox based on Normal Basis arithmetic together
+with a glitch generator, which was able to generate a glitch with changeable period in any
+desired clock cycle, were designed. Various glitch characteristics were examined using the
+post-route timing simulation. The glitch period interval in which the fault occurred was
+estimated. The Sbox architecture included a glitch generator and two Sbox blocks, one
+with a normal clock input and the other one with the glitchy clock generated by the glitch
+generator block. Comparing the outputs of the two Sbox blocks in the output waveform
+55
+from the Xilinx ISE software, this was observable whether or not a fault has happened in
+the desired clock cycle and what the fault value was.
+Hardware experiments illustrate that on-chip glitch generator on a SASEBO-GII was
+successful in injecting faults in a complete AES implementation. Analysis of the faults
+illustrated the following two main characteristics:
+1. The fault occurrence was finely controllable by the clock glitch details.
+2. The value of the faults were random.
+These experimentally observed features are used in most attacks because the fault mod-
+els in those attacks assume that first, single faults, either bit-wise or byte-wise, are injected.
+Second, if an attack requires two faults to happen, the device must not produce the same
+fault in both fault generation processes.
+As explained in the previous chapter, the fault happens in the output only in a nar-
+row range of the glitch period. In other words, the timing window in which the registers
+sample a wrong state is highly limited. Hence, the fault occurrence is controllable by the
+attacker (characteristic 1). The randomness of the fault (characteristic 2) is because when
+shortening the clock cycle and the round calculation time, the probability of bit reversal is
+0.5.
+The position of the output faulty bytes likely indicates that each byte of the state has
+a different path delay and this is perhaps why some of them are more vulnerable to setup
+time violation attacks. A new place and route technique might change the path delay of
+the bytes and affect their robustness against clock glitch attack. Therefore, for each dif-
+ferent implementation of the AES, testing utilizing such a fault attack testbed is important.
+Investigating the effect of heating the device by reprogramming it while running a cryp-
+tographic function indicates that the temperature outside of the chip or inside the chip
+(due to reprogramming it for several times) may increase the number of faulty bits/bytes
+in the output. However, most fault attack models need a single bit or single byte fault
+to be injected. So, in a real attack, the attacker must watch the temperature in order to
+generate a desired single fault.
+56
+To the best of our knowledge, this is the first FPGA-based testbed including on-chip
+glitch generator to inject the glitch faults into the AES cryptosystem implemented on the
+FPGA. Since the glitch generator is implemented on the same FPGA as the cryptosystem,
+a uniform environment is provided to examine the robustness of a cipher against glitch
+attacks. The glitch generator proposed in [20], is applied on AES, but it uses external
+equipments such as two separate pulse generators and an oscilloscope and needs to be
+manually tuned. The pulse generators have clock signals with the same frequency but
+different phase shifts and the glitch happens when switching between the two clocks. Al-
+though, this mimics a real attack (because the glitch generator utilizes off-chip circuitry),
+this thesis utilizes an on-chip glitch generator in order to have a low-cost testbed design
+which is useful for investigating the viability and analysis of fault injections on various
+cryptographic functions in future embedded systems. The glitch generator in [19] has been
+applied only on RSA cryptosystem and the glitch characteristics and resulting faults have
+not been investigated. Furthermore, the effect of the temperature in clock glitch fault
+attacks have not been explored in previous works.
+
+
+PAPER 4: Analytical Classifications of Side Channel Attacks, 
+Glitch Attacks and Fault Injection Techniques: 
+Their Countermeasures
+
+Abstract— Cryptographic devices have many encrypted 
+and secured solutions to protect them against attacks. 
+Hardware engineers infuse lot of time and effort in 
+implementing  cryptographic  algorithms,  keeping  the  analysis  
+of design constraints into consideration. Engineer’s face a 
+challenge  for  building  resistant  free  embedded  system  against  
+attacks  called  as  side  channel  attacks.  Therefore,  there  is  a  
+strong  need  to  address  issues  related  to  side  channel  attacks.  
+This  paper  is  a  review into  the  field  of  hardware  security  that  
+will provide a deep investigation of types of side channel 
+attacks & fault injection techniques with some real life 
+examples  further  enhancing  the  researcher’s  vision  to  build  
+efficient and secure systems in order to thwart attacks. 
+Researchers will also be acquainted with some 
+countermeasures  against  various  attacks.  Lastly,  we  have  also  
+discussed some future perspective that can give upcoming 
+researchers a new domain to work on. 
+
+I. INTRODUCTION  
+ Era  of  cloud  computing  and  IoT  makes  our  embedded  
+devices vulnerable to SCA (Side Channel Attacks) and Fault 
+Injection  Attacks.  This  paper  discusses  about  various  types  
+of SCA, their countermeasures and fault injection techniques. 
+Security  is  big  concern  in  every  field.  Embedded  devices  
+such  as  smart  cards  are  at  a  risk  of  side  channel  attacks,  
+which further leak secret information. Over the last 15 years 
+side channel attacks have become a major concern for 
+industry  and  every  field.  Further  it  resulted  in  intensive  
+research to develop suitable countermeasures that can at least 
+make them more difficult and time consuming to perform [1-
+2].  Brute  force  analysis  is  performed  in  order  to  obtain  the  
+secret  key.  Brute  Force  analysis  requires  an  adversary  to  
+perform  lot  of  experiments  to  have  access  to  secret  key  [3].  
+Attackers  have  evolved  with  many  methods  to  have  easy  
+access  to  unintended information  [4-5].  Side channel  attacks  
+viz  power  consumption,  EM  (electro-magnetic)  radiations,  
+timings attacks do not take part actively but they leak 
+information through these interfaces. By doing simple 
+analysis  and  advanced  analysis  adversary  can  easily  detect  
+secret  information  [6-7].  There  are  numerous  reasons  for  
+attacks that lead to vulnerabilities in designs and are 
+discussed as follows: -
+Backdoors  Entries:  Generally,  a  designer  focuses  more  
+on  design than  on security  levels, which leads to some 
+backdoors in the design. Through these backdoors, the 
+adversary  can  easily  get  the  secret  key  or  can  produce  harm  
+to  the  design.
+
+Use of third party IP and CAD tools: Designers generally 
+use  third  party  IP  instead  of  creating  their  own  design  from  
+scratch  [9].  It  is  believed  that  it  saves  lot  of  time  and  effort  
+but  these  IPs  are  not  secure  can  create  problems  for  the  
+designers in terms of security. But these IP used by designers 
+put  them  into  trouble  since  they  contain  un-trustable  blocks  
+or  malicious  codes  which  may  affect  their  security  resulting  
+in  data  leakage 
+Attackers  add Hardware Trojans into the Hardware: 
+Hardware  Trojan  is  [11-12]  any  addition/modification  to  a  
+circuit or a system with malicious intention which causes the 
+chip /system to produce faulty or unexpected input command 
+II.  CLASSIFICATION OF ATTACKS:THEIR COUNTERMEASURES 
+Attacks are classified as[17-18]: 
+A. Invasive                  
+B. Non-invasive        
+C. Semi-invasive 
+D. Fault injection attacks
+Some of the countermeasures for invasive attacks are -  
+ Bus Scrambling/Obfuscate Data: Change the 
+order/connections of data bus. Another method is removal of 
+dead space in layout which makes it difficult for the attacker 
+to insert any kind of attack. 
+ Glue  Logic  Design  Approach:  Hide  data  bus.  In  this  
+various  blocks  such  as  instruction  decoder,  ALU,  I/O  are  
+glued  together  like  ASIC  instead  of  individu
+Sensor  Mesh  at  the  Top  Metal  Layer:  Most  smart  cards  
+have  sensor  mesh  implemented  in top  metal  layer.  All paths  
+in  mesh  are  monitored  continuously.  Any  attack  attempt  
+(micro-probing)  will  cause  short  circuits.    This  will  trigger  
+alarm and memory contents will be reset to protect sensitive 
+data. 
+ Circuit Obfuscation: Attackers use the method of reverse 
+engineering  to  steal  important  information  from  the  chip.  
+This  method  make  reverse  engineering  harder  by  modifying  
+circuit  in  such  a  way  to  makB.  Non-Invasive Attacks 
+These types of attacks are less destructive as compared to 
+invasive  attacks  and  they  do  not  harm  the  chip  physically.  
+They  are  non-penetrative  attacks.  In  this  attackers  interact  
+with  device  via  its  interface (voltage, current,  I/O  etc). They  
+just  observe and manipulate  device without causing any 
+physical harm to it. These types of attacks leave no evidence 
+of attack and device remains undamaged. 
+• Passive Attacks: Attacker only monitors and 
+measures physical characteristics. 
+• Active  Attacks:  Attacker  injects  input  to  system  to  
+cause system malfunction.
+
+Fault injection 
+techniques 
+Cost Analysis tool used Active/
+Passive 
+Invasive/non-
+invasive 
+Damage to device
+
+Positive power 
+glitch(power supply 
+glitches) 
+Low 28nm CMOS/STA
+(static timing analysis) of 
+circuits are done 
+Active non-invasive No 
+
+Negative power 
+glitch(power supply 
+glitches) 
+Low Eldo(Mentor 
+Graphics)/HCMOSM8 
+180nm 
+Active non-invasive No 
+
+Clock glitch Low FPGA Active non-invasive No 
+
+EM pulses Low Magnetic coil Passive non-invasive Partially 
+
+Temperature Low PT100 sensor Passive semi-invasive Partially 
+underpowering/ 
+overpowering 
+Low FPGA Active non-invasive No 
+Light radiation Low Optical devices Active Invasive Yes 
+Light pulse Moderate Optical devices Active Invasive Partially 
+Focused Ion beam Very 
+high 
+Laser Active Invasive Yes 
+Laser beam High Laser Active Invasive Partially 
+References Attack Characterization Tools/Techniques 
+used 
+Result Analysis Research Gaps /Future Research 
+work 
+52 Negative 
+Glitch 
+Attack 
+Effect of negative attack on 
+gates is modification of its 
+timing properties leading to 
+faulty output. D flip flops are 
+resistant to glitch attacks. 
+Mentor Graphics 
+simulator  
+ 
+ELDO (V5.6) 
+Combinational 
+circuits get affected 
+more as compared to 
+sequential circuits. 
+Future work: 1.Define criteria for flip 
+flop sensitivity at rational level.  
+2.Combinational logics to follow some 
+design rules criteria to counteract 
+attacks. 
+53 Negative 
+Voltage 
+Attack 
+With same injection mechanism 
+for clock and power glitch 70 % 
+of cases found to produce same 
+faults. 
+TRC (Tunable 
+Replica Circuit), PDL 
+(Parallel Delay lines), 
+CPR(Critical Path 
+Replica). 
+Comparison of 
+detection circuits 
+shows PDL circuit is 
+between TRC & 
+CPR. 
+Future work: Characterization of these 
+solutions on silicon.  
+54 Negative 
+Power 
+Glitch 
+Experimental proof of 
+equivalence of negative power 
+glitch and over clock glitch is 
+provided and found 70 % of 
+cases to be identical 
+Field Programmable 
+Gate Array (FPGA) 
+Xilinx Spartan 3A 
+Power attacks are 
+easy to conduct but 
+power glitch attacks 
+are less accurate than 
+clock glitch attacks. 
+1. Faults arises due to the fact that some 
+sub circuits might be powered at 
+different voltages. No evidence is 
+provided [68]. 
+2. Effects of overheating and positive 
+power glitch not studied. 
+3. Future work: To study spatial effect 
+associated with power glitch. 
+55 Positive 
+Voltage 
+Attack 
+This attack causes propagation 
+delay in CMOS cells further 
+becoming the reason for attacks. 
+Propagation delays change 
+timing properties of CMOS 
+devices. 
+TRC (Tunable 
+Replica Circuit), 
+PDL(Parallel Delay 
+lines), CPR(Critical 
+Path Replica). 
+Critical Path Replica 
+becomes the 
+efficient solution 
+among all because it 
+has high accuracy 
+and low overhead. 
+ 
+Detection of attacks when multiple 
+power supplies are used. 
+56 Clock 
+Glitch 
+Attack 
+Highly accurate clock glitch 
+generator is proposed on AES. 
+Secret key discovered using 6 
+faulty cipher texts only. 
+Altera FPGA (Field 
+Programmable Gate 
+Array)board. 
+Experimentally 
+shown low cost, 
+non-intrusive and 
+effective method for 
+glitch generation. 
+ 
+ 
+
+PAPER 5: Clock Glitch Fault Attacks on Deep Neural Networks and
+Their Countermeasures
+
+Abstract: Recently, deep neural networks (DNNs) have been widely used in various
+fields, such as autonomous vehicles and smart homes. Since these DNNs can be directly
+implemented on edge devices, they offer advantages such as real-time processing in low-
+power and low-bandwidth environments. However, the deployment of DNNs in embedded
+systems, including edge devices, exposes them to threats such as fault injection attacks.
+This paper introduces a method of inducing misclassification using clock glitch fault attacks
+in devices where DNN models are executed. As a result of experiments on a microcontroller
+with a DNN implemented for two types of image classification (multi-class and binary
+classification using MNIST, CIFAR-10, and Kaggle datasets), we show that clock glitch fault
+attacks can lead—with a high probability—to the occurrence of serious misclassifications.
+Furthermore, we propose countermeasures to defeat the glitch attacks on each Softmax
+function and Sigmoid function at the algorithm level, and we confirm that these methods
+can effectively prevent misclassification incidents
+
+1. Introduction
+Recently, deep learning has been applied in various real-life applications, such as
+autonomous vehicles, smart homes, and IoT applications. However, these deep neural net-
+work (DNN) implementations are easily exposed to threats from malicious attackers when
+operating on systems that are far away from their administrators, such as edge devices. For
+instance, in adversarial attacks, an attacker deliberately perturbs the input data to induce
+misclassification in DNNs designed for image recognition [1–3]. Additionally, they can
+also induce misclassifications by physically accessing the DNN computations performed
+on edge devices and injecting faults into the internal computational processes [4–8]. In
+practice, fault injection attacks allow adversaries to compromise security mechanisms in
+edge devices in smart homes and bypass authentication processes [9]. They also pose a
+serious threat to applications such as object detection in autonomous vehicles, as they can
+cause operational flaws [10].
+Many of the fault injection attacks developed thus far, including glitches [11–13],
+lasers [14,15], electromagnetic (EM) pulses [16,17], and other methods compromising
+device operation, have been used to introduce faults into encryption systems. Here, the
+glitch fault injection attack is conducted with direct contact to the target device, making it a
+highly accurate and relatively low-cost technique. Comparatively, fault attacks using lasers
+or EM pulses are non-contact methods, so the accuracy of the attack is relatively low and the cost of building an attack environment is high. Moreover, they require chip decapping
+for accurate fault injection, which poses challenges in practical applications. In voltage
+glitch attacks, direct access to the power supply line of the target device is required, and
+the device may stop operating due to power supply instability. In contrast, clock glitch
+attacks, in which the edge timing of the main clock is disrupted, can be carried out more
+easily due to simpler synchronization and a stable power supply.
+Fault injection attacks enable adversaries to analyze faulty outputs and extract secret
+information stored inside devices [18–21]. Recently, various attacks have been estab-
+lished with the ability to inject faults in DNNs, thus inducing misclassifications [10,22–27].
+Liu et al. proposed a white-box attack on DNNs that is based on software simulation [22].
+However, it did not provide practical results in real implementation scenarios. Zhao et al.
+proposed a framework for injecting stealth faults into selected inputs while maintaining the
+overall test accuracy [23]. Practical research by Bereir et al. used laser-injection techniques
+on embedded devices to conduct fault injection attacks; this research was conducted to
+demonstrate the possibility of inducing misclassification through the injection of faults
+into the hidden layers of DNNs [10,24]. Alam et al. proposed remote fault attacks that
+utilized the vulnerabilities in the RAM of FPGAs, demonstrating an ability to induce timing
+faults and bit flips [25]. Fukuda et al. evaluated attack performance from faults caused
+by injecting clock glitches into the Softmax function of a DNN output layer, successfully
+misclassifying input images processed on an 8-bit microcontroller [26]. Recently, Ordoñez
+et al. conducted an experiment in which faults were injected into the fully connected (FC)
+layer of a black-box DNN model. Their results indicate that up to 93% of inputs were
+misclassified as attacker-specified classes, demonstrating the method’s effectiveness [27].
+In another study, Das et al. proposed a method for inducing bit flips in large language
+models (LLMs) using software-induced faults such as Rowhammer attacks to undermine
+the integrity and performance of the models [28].
+In this study, we experimentally demonstrate that a clock glitch fault attack on a
+DNN used in an edge device can lead to misclassifications. We injected a clock glitch
+capable of inducing misclassifications with high probability, using simple tools and with
+low experimental cost. Since these glitch attacks are more effective than attacks on other
+activation functions in the hidden layers, they primarily target two functions in the last
+layer of the DNN: the Softmax function for multi-class classification and the Sigmoid
+function for binary classification.
+The experiments launch clock glitch fault attacks on devices running deep learning
+models. Specifically, the attacks target the activation functions used in the output layers of
+multi-class and binary classification models (namely Softmax and Sigmoid) by inducing
+instruction skipping to cause misclassifications. In addition, considering the realistic
+scenarios of glitch fault injection attacks, we use an external trigger-generation method to
+determine the exact timing on the target device. This method uses the Sum of Absolute
+Differences (SAD) algorithm [29], a pattern-matching technique between the real incoming
+waveform and a reference waveform. Here, the reference waveform is a type of pre-enrolled
+side channel information, such as power consumption.
+The major contributions of our paper are as follows:
+• We launch fault injection attacks on the output layer activation functions of two
+models: a multi-class classification model trained on the MNIST (10 digits) and CIFAR-
+10 datasets, and a binary classification model trained on the MNIST (two digits) and
+Kaggle (Dogs vs. Cats) datasets.
+• Considering the practical feasibility of fault injection attacks, we conducted exper-
+iments by generating glitches outside the target device. Furthermore, we used a waveform pattern-matching algorithm based on the power consumption waveform at
+the attack point to determine the timing for the clock glitch injection.
+• We implemented several classification DNN models on the target chip ARM Cortex-
+M4 STM32F303, and confirmed that these models are vulnerable to fault attacks.
+• Considering that only a negligible computational overhead should be added, the
+proposed countermeasures effectively mitigate the attacks on Softmax and Sigmoid
+functions through additional detection processes at the algorithmic level.
+Compared to previous similar studies in the literature [22,24,26], this work confirms
+that fault injection attacks can be extended to various applications of deep learning models.
+In particular, we conducted practical experiments on both binary and multi-class classifica-
+tion models. In addition, we emphasize that software countermeasures at the algorithm
+level are very effective against fault injection attacks on Softmax and Sigmoid functions.
+This paper is structured as follows. Section 2 describes the DNN structure and the fault
+injection attacks. In Section 3, we analyze the Softmax and Sigmoid functions that are the
+targets of the attack and observe possible attack points. Section 4 describes the experimental
+settings for the microcontroller; additionally, the results from the clock glitch fault attacks
+on a DNN are presented. Section 5 explains the principles of our countermeasure and
+presents experimental results when applying the countermeasure on the targeted board.
+Section 6 concludes the paper.
+
+Conclusions
+Deep learning, which has recently been attracting attention, is widely used for fa-
+cial recognition and image detection in IoT-edge devices and smart homes. However,
+remote edge devices that run a DNN are exposed to threats such as fault injection attacks
+and side-channel attacks. In particular, glitch-fault injection attacks can easily lead to the
+misclassification of images through the utilization of simple tools.
+The present paper has demonstrated that some clock glitch injection attacks can
+effectively induce faults in image-classification DNN models. The targets for fault injection
+attacks are the Softmax and Sigmoid functions at the output layer of multi-classification
+and binary classification, respectively.
+To verify the applicability of fault injection attacks, we used the MNIST datasets for
+image classification and implemented DNN models on a 32-bit STM32F303 microcontroller.
+We designed an experimental environment to generate attack triggers external to the device
+using a SAD-based pattern-matching algorithm, considering realistic scenarios of fault
+injection attacks. By terminating the first loop of the Softmax function using glitches, the
+misclassification of class 0 data was easily induced.
+The experimental results showed that the accuracy of multi-classification through MLP
+decreased from 95.88% to 16.09% following a clock glitch fault attack and decreased from
+100% to 1.20% in the case of binary classification. Fault injection attacks on CNN-based
+multi-classification models resulted in an accuracy decrease of up to 10%. Furthermore, we
+proposed a countermeasure to glitch attacks on the Softmax function, which is based on
+checking the loop counter and validating computational correctness. And for the Sigmoid
+function, we applied a method to check whether the output is the same as the input by
+executing the inverse function on the output. In experiments injecting faults into a multi-
+classification MLP, our countermeasure was able to detect faults with a probability of up
+to 92.56%.
+Consequently, we confirmed that our proposed Softmax and Sigmoid algorithms can
+sufficiently defeat fault injection attacks. Since our experiments were performed only on
+the STM32F303 microcontroller, further studies are needed to generalize our results. In
+particular, fault injection attacks by a laser or an EM other than clock glitch should be
+widely studied for hardware platforms with different design structures, such as RISC-V,
+x86, and FPGA architecture microcontrollers.
+
+
+PAPER 6: CompaSeC: A Compiler-assisted Security Countermeasure to
+Address Instruction Skip Fault Attacks on RISC-V
+
+ABSTRACT
+Fault-injection attacks are a risk for any computing system execut-
+ing security-relevant tasks, such as a secure boot process. While
+hardware-based countermeasures to these invasive attacks have
+been found to be a suitable option, they have to be implemented via
+hardware extensions and are thus not available in most Commonly
+used Off-The-Shelf (COTS) components. Software Implemented
+Hardware Fault Tolerance (SIHFT) is therefore the only valid op-
+tion to enhance a COTS system’s resilience against fault attacks.
+Established SIHFT techniques usually target the detection of ran-
+dom hardware errors for functional safety and not targeted attacks.
+Using the example of a secure boot system running on a RISC-V
+processor, in this work we first show that when the software is
+hardened by these existing techniques from the safety domain, the
+number of vulnerabilities in the boot process to single, double, triple,
+and quadruple instruction skips cannot be fully closed. We extend
+these techniques to the security domain and propose Compiler-
+assisted Security Countermeasure (CompaSeC). We demonstrate
+that CompaSeC can close all vulnerabilities for the studied secure
+boot system. To further reduce performance and memory overheads
+we additionally propose a method for CompaSeC to selectively
+harden individual vulnerable functions without compromising the
+security against the considered instruction skip faults
+
+ INTRODUCTION
+Fault injection based instruction skip attacks are a risk for secure
+systems. Control flow oriented software is especially at risk, be-
+cause singular upsets in few but very important program segments
+can lead to a vastly different system response. Countermeasures
+against such attacks can be found in sophisticated processing sys-
+tems in the form of hardware extensions [21, 22]. On the other hand,
+Commonly used Off-The-Shelf (COTS) devices may not come with
+such features, but may still be required to work in a high-security
+mode of operation. Software-based countermeasures are a neces-
+sary fallback to increase the challenge for a potential adversary as
+much as possible.
+Many known Software Implemented Hardware Fault Tolerance
+(SIHFT) methods have been developed for safety-critical systems,
+however, the mostly stochastic fault model (time and spatially ran-
+dom single event upsets) used to evaluate them cannot be directly
+transferred to a sophisticated attacker. This means that safety does
+not infer security and the latter has to be evaluated with a concrete
+exploit in mind, i.e., a certain system response. Additionally, protec-
+tion can be dependent on the Instruction Set Architecture (ISA): Not
+all software techniques can be implemented equally effective on
+many ISAs. Furthermore, SIHFT causes overhead. Protecting a com-
+plete code base can lead to infeasible overheads in constrained de-
+vices w.r.t. runtime, memory size, and memory transactions. These
+challenges are addressed with our contributions, which are as fol-
+lows:
+• Simulative Verification against Instruction Skip Fault
+Attacks: We show how to analyze and identify the vulner-
+ability of secure boot against instruction skip fault attacks,
+e.g., booting an unverified software image. Our metrics are
+remaining successful attacks and overall fault detection capa-
+bility for multiple compiler-based software countermeasures.
+• Security-aware Compiler-assisted Countermeasure: We
+propose CompaSeC which is a new Runtime Signature Mon-
+itoring (RSM) and Dual Module Redundancy (DMR) symbi-
+otic countermeasure that completely closes the instruction
+skip fault attack vector for at least single, double, triple, and
+quadruple skips in the studied secure boot program.
+• Function-level Selective Hardening: We reduce the over-
+all runtime (0.21 % vs. 484 %) and memory overhead (145 % vs.
+466 %) of CompaSeC by only hardening segments of secure
+boot identified by simulation as being vulnerable.
+The remainder of this work is structured as follows: First, we
+discuss the related work (Section 2). In Section 3, we showcase
+the limitations of existing SIHFT methods and propose our own
+method CompaSeC. We evaluate the discussed countermeasures
+in a secure boot scenario in Section 4 and conclude this work in
+Section 5
+
+4.2.1 Functional Results. We define the rate of detected instruction
+skip fault injections 𝑑 and the number of remaining successful fault
+attacks 𝐹 as metrics to compare the compiler assisted techniques
+with each other. The detection rate 𝑑 indicates how sensitive the
+hardened Software Under Test (SUT) is to injected instruction skip
+faults. It is the ratio between fault injections detected by a technique
+and the total number of fault injections. Note that the number of
+fault injections corresponds to the number of executed instructions.
+It is therefore increased by the protection overhead of each tech-
+nique. We use this additional metric, since only a small number of
+instruction skip faults also lead to the successful fault attacks 𝐹, i.e.,
+booting a malicious image.
+Table 1 shows the results of the simulations for each SIHFT
+technique. Listed with each is the number of executed instructions
+as a multiple of 1000 𝐼103, the remaining successful attacks over
+all skip types 𝐹, and the overall detection rate 𝑑. Here, 𝐼103 also
+corresponds to the number of simulated fault injection experiments.
+Table 2: Performance and Memory Overhead of Various SI-
+HFT Combinations on Secure Boot
+DMR RSM overhead: exeinstr% size
+ROM% size
+RAM% traffic
+RAM %
+- cfcss 83 70 0.0 0
+- rasm 67 79 0.0 0
+- racfed 133 143 0.54 80
+nzdc - 134 122 0.75 794
+nzdc cfcss 217 191 0.75 794
+nzdc rasm 200 200 0.75 794
+nzdc racfed 401 385 1.18 840
+nemesis - 150 147 0.75 794
+nemesis cfcss 300 237 0.75 794
+nemesis rasm 284 261 0.75 794
+nemesis racfed 484 463 1.18 840
+swift 234 212 0.75 635
+CompaSeC 484 466 1.18 840
+select CompaSeC 0.21 145 5.71 153
+𝑑 is also broken down into the detection rate for each skip type:
+𝑑1,𝑑2,𝑑3, and 𝑑4 for single, double, triple, and quadruple skips,
+respectively. Figure 4 shows the number of remaining successful
+fault attacks for each SIHFT technique as a stack of all instruction
+skip types. Only CompaSeC eliminates all remaining successful
+fault attacks 𝐹 while having the highest overall detection rate 𝑑.
+Furthermore, we can see that the combination of a RSM and a DMR,
+e.g., NEMESIS and RASM, does not directly add up to a reduction
+of successful attacks 𝐹 and an increased detection rate 𝑑. This
+comes down to both techniques overlapping in their error detection
+capability. Additionally, the register file reservation can result in
+new attack scenarios which can be seen in Figure 4; NEMESIS
+standalone does not have any successful single skip fault attacks
+left, however, combining it with RASM resulted in a new successful
+single skip fault attack. Even more so, SWIFT has in total more
+remaining successful fault attacks than deploying no protection at
+all, but has less successful single skip fault attacks. The reason for
+this is that deploying DMR greatly increases the program size, and
+thus the number of executed instructions. This increases the number
+of possible fault injection attacks. SWIFT at the same time seems to
+be more vulnerable to multi-instruction skips due to fewer and more
+limited balance checks than nZDC-based DMRs such as NEMESIS
+and CompaSeC. In regards to RSM, RASM and RACFED show better
+detection performance than CFCSS which mostly comes down
+to two signature updates at both ends of a BB. RACFED’s I-RSM
+greatly increases the detection capability of multi-instruction skips,
+while NEMESIS performed best w.r.t. single skips. The remaining
+faults in the best performing established techniques, NEMESIS with
+RASM and RACFED, are described and avoided with the additional
+features of CompaSeC. This includes protecting volatile memory
+operations as described in Section 3.2. Selective CompaSeC reduces
+the overall detection rate 𝑑, but is not weaker than a full pass
+of CompaSeC on the secure boot code base w.r.t. the remaining
+successful fault attacks 𝐹.
+4.2.2 Performance and Memory Overhead. To evaluate how detri-
+mental the compiler-assisted techniques are to the software perfor-
+mance, we measure memory and runtime overheads. The runtimoverhead is measured in number of executed instructions during
+typical use, i.e., no fault attacks and a valid software image. Table 2
+shows the measured overheads. The basis is a non-hardened imple-
+mentation of secure boot requiring a total of 12,668,398 instructions,
+a ROM size of 19.95 KiB, a minimum RAM of 7.26 KiB at 5223 RAM
+load and store operations excluding transactions related to loading
+the image to RAM. Similarly to the detection rate of combinations
+not accumulating, performance overheads behave similarly. Deploy-
+ing RSM on a DMR hardened code base, e.g., CompaSeC, results in
+an executed instruction overhead of 484 % for a fully hardened code
+base since the RSM also considers additionally generated code from
+DMR. The same is the case for the required ROM size to host secure
+boot. Here, an all-function CompaSeC pass on secure boot leads to
+an overhead of 466 %, thus, requiring 113 KiB ROM. This poses a
+challenge for constrained COTS devices to host such binaries. The
+evaluated DMR methods do not duplicate the instance of data in
+memory but only add redundancy to their operations. Because of
+this, the RAM overhead is in the low percentages. However, the
+amount of memory transaction overhead (up to 840 %) grows not
+only because of the duplicated memory operations, but also be-
+cause of the increased stack utilization due to register spills. The
+proposed function-level selective hardening can help mitigate these
+drawbacks: Selectively applied, CompaSeC measures at a nearly
+non-existing execution overhead of 0.21 % while reducing the ROM
+overhead to 145 %. The slight increase in RAM usage can be traced
+back to switches between DMR and non DMR calling conventions
+requiring preservation of large parts of the register file between
+both domains, as described in Section 3.2.4
+
+5 CONCLUSION
+We present a security-aware compiler-assisted countermeasure,
+CompaSeC, that is able to mitigate the instruction skip fault attack
+vector for at least single, double, triple, and quadruple skips. Fur-
+thermore, we evaluate the instruction skip fault detection capability
+as well as performance and memory overhead of CompaSeC com-
+pared to various other compiler-based countermeasures using the
+example of a secure boot system. CompaSeC removes all successful
+attacks. When applied selectively to all vulnerable functions identi-
+fied during simulation, it incurs a runtime overhead of 0.21 % and a
+ROM overhead of 145 % while still removing all successful attacks.
+
+
+
+
+PAPER 7:
+CRAFT: Characterizing and Root-Causing Fault
+Injection Threats at Pre-Silicon
+
+Abstract—Fault injection attacks represent a class of threats
+that can compromise embedded systems across multiple layers of
+abstraction, such as system software, instruction set architecture
+(ISA), microarchitecture, and physical implementation. Early
+detection of these vulnerabilities and understanding their root
+causes, along with their propagation from the physical layer
+to the system software, is critical to secure the cyberinfras-
+tructure. This work presents a comprehensive methodology for
+conducting controlled fault injection attacks at the pre-silicon
+level and an analysis of the underlying system for root-causing
+behavior. As the driving application, we use the clock glitch
+attacks in AI/ML applications for critical misclassification. Our
+study aims to characterize and diagnose the impact of faults
+within the RISC-V instruction set and pipeline stages, while
+tracing fault propagation from the circuit level to the AI/ML
+application software. This analysis resulted in discovering two
+new vulnerabilities through controlled clock glitch parameters.
+First, we reveal a novel method for causing instruction skips,
+thereby preventing the loading of critical values from memory.
+This can cause disruption and affect program continuity and
+correctness. Second, we demonstrate an attack that converts legal
+instructions into illegal ones, thereby diverting control flow in
+a manner exploitable by attackers. Our work underscores the
+complexity of fault injection attack exploits and emphasizes the
+importance of preemptive security analysis.
+Keywords—Fault injection attack; RISC-V; Instruction decode
+failure; Clock glitch; Pre-silicon
+I. INTRODUCTION
+Fault injection attacks (FIAs) deliberately introduce faults
+into a system to alter its behavior, exploiting, e.g., timing
+characteristics of designs to induce malfunctions. An attacker
+may be driven by various goals, such as (a) bypassing security
+mechanisms to gain unauthorized access to sensitive resources
+in PIN-based access controls [1]; (b) extracting secret keys
+by inducing faults during cryptographic operations [2]; (c)
+disrupting critical system functionality, causing failures in
+applications ranging from industrial control systems to IoT
+devices [3]; (d) escalating privileges within embedded systems,
+enabling unauthorized execution of commands or access to re-
+stricted data [4], and (e) targeting data integrity by introducing
+errors into computation/data flow, compromising the reliability
+and accuracy of critical systems [5], [6].
+Pre-silicon analysis identifies vulnerabilities early in the
+design cycle, enabling targeted security enhancements before
+fabrication. Whereas, post-silicon verification ensures practical
+system resilience by validating countermeasures under real-
+world conditions. While prior works inject faults [7] or miti-
+gate them by addressing symptoms [8], little research identifies
+the root causes of FIA vulnerabilities across pre- and post-
+silicon stages.
+A key limitation of these works is their emphasis on analyz-
+ing the effects of faults, such as instruction skips or data cor-
+ruption, while providing insufficient attention to investigating
+the underlying causes of fault generation. Understanding why
+these faults occur across multiple layers, such as instruction set
+architecture (ISA), microarchitecture, and physical hardware,
+remains critical to designing more effective, targeted counter-
+measures and uncovering undocumented and novel exploits.
+In this work, we perform a clock glitch attack on the RISC-
+V soft-core processor, leveraging insights from pre-silicon
+analysis to systematically guide the post-silicon attack process.
+A clock glitch is a prevalent type of FIA, which alters the clock
+signal to disrupt the system’s state transitions and induces
+errors through timing violations [9], [7]. These attacks are
+often inexpensive, require minimal equipment, and can even be
+conducted remotely [10], [11]. Our key contributions include:
+•RISC-V instruction characterization. We analyze and
+rank eight fundamental instructions in the RISC-V ISA
+based on their vulnerability at each pipeline stage.
+•Identification of vulnerability cases. We identify four
+distinct cases where an attacker can maliciously redirect
+program flow through precise glitch configurations, al-
+lowing the conversion of a legal instruction in the RISC-
+V pipeline into an illegal one. These scenarios include:
+– A novel approach to inducing instruction skips dur-
+ing critical operations, such as loading essential
+values from memory.– Instances of silent corruption caused by the glitch,
+where the RISC-V processor remains unaware of the
+fault and fails to trigger an exception handler.
+•Root-cause analysis and verification. Through system-
+atic analysis of RISC-V RTL code and pre- and post-
+silicon verification, we identified and root-caused a pre-
+viously unreported vulnerability in the pipeline registers
+shared among the Fetch (IF) and Decode (ID) stages.
+This work advances the understanding of RISC-V soft-core
+processor reliability under clock glitch attacks by inducing
+instruction skips and identifying silent corruption. Our root-
+cause analysis and verification pave the way for developing
+stronger and lower-cost defenses to protect RISC-V systems
+
+IV. PRE-SILICON AND POST-SILICON RESULTS
+Test-Platform. We used the Vivado 2020.2 and the CV32e40x
+soft-core processor for the pre-silicon instrumentation. As part
+of our case study, we explored the impact of clock glitch-
+based fault injections on a neural network algorithm running
+inferences for the MNIST dataset [22]. We ran the RISC-V
+processor at 50 MHz with a timing constraint of 20ns specified
+in the constraint (*.xdc) file.
+We deployed the CV32e40x soft-core processor on the
+Xilinx Kintex-7 XC7K160T FPGA platform for post-silicon
+verification. Using the RISC-V compiler toolchain we gen-
+erated the binary file of the inference code, comprising the
+necessary machine instructions and associated data. A custom
+controller module was developed to enable data transmission
+from the host PC to the FPGA. We used the FPGA’s internal
+PLL to introduce glitches to the clock signal. When the
+processor core detects the target instruction, it relays a trigger
+signal to the glitch circuitry, as depicted in Fig. 5. The
+PLL generates three distinct clock signals: ‘CLK0’, which
+serves as the reference base clock at 50 MHz, ‘CLK1’ and
+‘CLK2’, which are phase-shifted versions of ‘CLK0’. We can
+modulate the glitch parameters by dynamically reconfiguring
+the phase difference among these clocks. The phase difference
+of ‘CLK1’ relative to ‘CLK0’ and ‘CLK2’ defines Toffset and
+Twidth, respectively. To investigate clock glitches effect, we
+integrated the internal logic analyzer (ILA) into our design to
+capture, observe, and analyze core signals, such as, the PC
+value, register file contents, and critical control signals [25].
+The ILA monitored and sampled these signals at 300 MHz fre-
+quency, the maximum reliable limit for our target hardware7.
+7 Beyond this frequency, the signals and values start to exhibit unreliability,compromising accurate observations.
+TABLE IIEXPERIMENTAL RESULTS SHOWING VARIOUS GLITCH OFFSET AND WIDTH
+CONFIGURATIONS THAT LEAD TO OUTPUT CORRUPTION. ADJUSTING THE
+GLITCH WIDTH PRODUCES EFFECTS SUCH AS INSTRUCTION SKIPPING,LOADING ALL ZEROES, OR SELECTIVE CORRUPTION OF THE MSBS.
+Case
+#
+Toffset
+(ns)
+Twidth
+(ns)
+Tglitch
+(ns)
+Illegal FlagRaised EffectObserved
+1
+0.833
+≤2.967 ≤3.8 ✓Instruction Skip
+2 3.067 – 3.567 3.901 – 4.400 ✓Data Zeroization3 3.667 – 4.289 4.504 – 5.121 ✗Data Zeroization4 4.289 – 4.339 5.112 – 5.172 ✗Partial Data Corruption
+Fig. 6. (a) C-code for MNIST inference and (b) the targeted ‘load’ instructionin the assembly by the proposed attack.
+A. Pre-Silicon Verification
+We used gate-level post-synthesis netlist to orchestrate our
+attack and inject faults for two reasons: (i) it is the earliest
+design stage that includes the circuit’s timing information.
+Analysis at this stage allows for identifying potential vulnera-
+bilities and timing-related issues that could be challenging and
+costly to address later in the design process, and (ii) it enables
+rapid and detailed analysis with minimal overhead compared
+to post-silicon evaluations. Fig. 6(a) and (b) present a snippet
+of the C code and the corresponding assembly code of the
+inference algorithm, respectively. The attack target is the ‘lw’
+instruction with a PC value of 0x386.
+We induced timing violations by injecting glitches into the
+nominal clock, adjusting Toffset and Twidth to ensure that
+the data does not reach the if _id_pipe_o register in time for
+the next clock edge. Fig. 7(a) shows fault-free execution of
+the neural network inference model (without clock glitch). A
+64-bit counter increments with each rising clock edge to mark
+time progression. At clock cycle 1197, the ‘lw’ instruction is
+fetched with a PC value of 0x386. In a fault-free execution, the
+instruction completes when the counter reaches 1201, loading
+the value 0x42026ada into the register ‘x11’, as shown in red.
+Fig. 7(b) shows the first-order effect of the clock glitch (red
+ellipses), showing zeroization of register ‘x11’ associated with
+the ‘lw’ instruction as expected in Case #2 and Case #3. It
+also depicts the second-order effect (marked in yellow rectan-
+gles), where the immediate value in the ‘JAL’ instruction is
+corrupted, resulting in incorrect ‘pc if’ redirection. Normally,
+‘JAL’ correctly redirects ‘pc if’ to offset 0x4074, as shown in
+Fig. 6(b) and 7(a). Through our proposed work, however,
+‘pc if’ is incorrectly redirected to 0xF3698 due to premature
+latching in the ‘compressed decoder’ module, as explained in
+§ III-C, causing cascading faults in the program flow.
+B. Post-Silicon Verification
+We were able to successfully reproduce similar effects
+at the post-silicon level for Case #1, Case #3, and Case
+#4. Fig. 7(c) illustrates the verification results for Case #1,
+where the attacked load instruction at the PC value 0x386
+is skipped (highlighted in red ellipse), raising the illegal
+instruction flag. The glitched clock signal is drawn by hand
+due to the limited sampling capacity of the ILA. The glitched
+clock experiences rapid transitions from low ↔ high within
+0.833ns, significantly shorter than the ILA’s sampling period
+of 3.33ns, resulting in undersampling of the glitch transitions.
+For Case #2, the fault effects differ between pre-silicon and
+post-silicon experiments. The ‘x11’ register loaded non-zero
+values during post-silicon verification versus all zeroes in pre-
+silicon. We speculate that the clock glitch that the prematurely
+latched input to the ‘compressed decoder’ differs between pre-
+silicon and post-silicon results. This input consisting of the
+fetched instruction dictates the final value written to the ‘x11’
+register as explained in § III-B. Also, the fetched PC gets
+redirected to 0xFFF337A4 instead of 0xF3698, as shown in
+Fig.7(b). Although the glitch effects are similar for the same
+settings, we speculate that the differences in corrupted values
+arise from critical path delay variations between post-synthesis
+and place-and-route netlists. We confirmed the existence of
+silent faults for Case #3 and Case #4 in post-silicon.
+V. ACKNOWLEDGEMENTS
+This work is funded in part by the Office of Naval Research
+(ONR) grant N00014-23-1-2103. The views, opinions and/or
+findings expressed are those of the authors and should not be
+interpreted as representing the official views or policies of the
+Department of Defense or the U.S. Government. Approved for
+public release. Distribution is unlimited.
+VI. CONCLUSION
+This work uncovers critical vulnerabilities in RISC-V soft-
+core processors under clock glitch-based fault injection at-
+tacks, revealing vulnerabilities such as instruction skips, data
+corruption, and illegal control flow execution. Our pre-silicon
+fault analysis of the CV32e40x pipeline ranks instructions
+based on their susceptibility at various pipeline stages. Our
+findings highlight pivotal attack vectors and emphasize the
+importance of pre- and post-silicon validation, stricter timing
+constraints, and improved exception handling. Future research
+could extend these techniques to other architectures, with an
+emphasis on developing automated, dynamic countermeasures
+
+

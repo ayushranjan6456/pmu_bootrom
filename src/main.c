@@ -49,11 +49,11 @@ void uart_println(const char *s) { uart_print(s); uart_print("\r\n"); }
 
 void systick_init(void) {
     SYST_RVR = 0x00FFFFFF;          /* load maximum reload value   */
-    SYST_CVR = 0;                   /* write clears CVR + COUNTFLAG */
     SYST_CSR = SYST_CLKSRC | SYST_ENABLE;  /* processor clock, start */
-    
-    /* NEW: Wait for the timer to actually reload before continuing */
-    while (SYST_CVR == 0); 
+    SYST_CVR = 0;                   /* write any value to reload from RVR */
+
+    /* Wait a few cycles for timer to stabilize */
+    for (volatile int i = 0; i < 10; i++);
 }
 
 /*
@@ -205,10 +205,10 @@ int main(void)
     uart_println("Counter: SysTick (processor clock, 24-bit)");
     uart_println("Features: elapsed_cycles | sub_a | sub_b | sub_c");
 
-    /* Reset counter to zero right before first checkpoint */
-    SYST_CVR = 0;
-    
-    /* Checkpoint 0: boot start baseline */
+    /* Checkpoint 0: boot start baseline
+     * Note: Includes UART init overhead (~400-1000 cycles)
+     * This is consistent across boots, so doesn't affect detection
+     */
     pmu_checkpoint(0);
 
     /* Stage 1: memory init */

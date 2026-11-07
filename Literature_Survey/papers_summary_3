@@ -1,0 +1,1190 @@
+PAPER 14: Injecting Software Vulnerabilities with Voltage
+Glitching
+
+I. INTRODUCTION
+Glitching, or fault injection, has been used for over a decade
+[1] to attack software running on secure execution environ-
+ments. Due to the upward trend in pricing in the software
+exploit market [8] and the increased hardening of security
+in consumer devices, there has been a rise in popularity of
+injecting faults to gain control of a device. Fault injections
+can be used to cause a malfunction in the target’s system-on-
+chip (SoC) and, when the malfunction is controlled properly,
+can be used by an attacker to take full control of the device.
+Voltage glitching is a specific kind of fault injection and
+is attractive because is it inexpensive to set up and is widely
+applicable to most chips [2]. Crowbar voltage glitching was
+introduced by O’Flynn [6] and implemented in the Chip-
+Whisperer open hardware platform to bring these attacks to
+the mainstream. It works by abusing the capacitance ringing
+effect caused by introducing a crowbar circuit into the existing
+system. The ringing causes faults that can be exploited.
+A. Background
+We looked at the prior attempts at modeling voltage fault
+injections and ordered them in terms of abstraction (see
+table I). Most recently, in a paper by Timmers, Spruyt, and
+Witteman [9], they created an architectural model of fault
+injection for ARM devices. Their model considers instruction
+corruption due to bit-flips caused by the fault. Their model is
+applicable to many kinds of fault injection.
+Another paper we drew inspiration comes from Zussa,
+Dutertre, Cl ́edi`ere and Tria [10]. Their work focused on
+confirming empirically that the mechanism for faults induced
+by voltage glitching is due to setup/hold time violations.
+They concluded that voltage glitches increased the propagation
+time of combinational logic which creates setup/hold time
+violations. Another connection we make is that while their
+paper wanted empirical evidence for a wide-held belief in how
+voltage glitches work we want a rigorous theoretical model for
+the same wide-held belief.
+One level down from that is the paper by Djellid-Ouar,
+Cathebras and Bancel [4] which concluded that D-flip-flops
+(and therefore most memory elements) were mostly immune to
+standard voltage attacks. Their paper analyzed bistable CMOS
+elements using the small signal model.
+In addition to modeling voltage glitches, there has been
+many experiments in applying voltage fault injections to affect
+processor operations on complex SoCs. The aforementioned
+paper from Timmers, Spruyt, and Witteman [9] details a
+bypass of a secure boot code integrity check on an ARM
+processor through voltage glitching. O’Flynn [6] used his
+crowbar method on a Raspberry Pi computer to modify the
+result of a running counter.
+The PlayStation Vita was a hand-held gaming console
+released in 2012. It used a custom designed Samsung 45nm
+SoC [3]. The SoC includes a MeP architecture processor which
+we nicknamed “F00D,” that performs cryptographic tasks and
+serves as the boot processor. The boot ROM used by F00D is
+unmapped early in the boot process and is then unable to be
+read out through pure software means.
+Our contribution will be in two separate domains. In section
+II, we will analyze the CMOS transistor behavior in order to
+understand when the combinational logic is most susceptible
+to voltage glitch induced faults. Then, in section III we will
+apply our understanding to perform a fault injection attack on
+the PlayStation Vita’s SoC to gain early (boot time) execution
+control of F00D in order to dump the boot ROM
+
+
+C. Results
+After writing a script with the ChipWhisperer API to
+try all possible N and M values (see appendix A-B) and
+running it overnight, we found a successful case with the
+following parameters (see table III). Due to the effects of
+wire capacitance and external capacitance, the parameters are
+highly specific to our setup and environment. However, after
+finding a valid N,M pair, even with environmental variations,
+we can find another valid N,M pair close by. If the equipment
+and target board and not moved or touched at all, we can
+reproduce the injected fault with the same N,M for > 80%
+of the time.
+D. Exploiting
+We managed to find the glitch parameters N and M that
+faults the bldr size check. However this only gives us a
+vulnerability. We still need to exploit it. Fortunately, this
+was made easy when we observed that when the glitch was
+successful, we see exactly 0xE2 blocks read if bldr size ≥
+0xE2. If bldr size < 0xE2, then it will read bldr size
+blocks exactly (with a successful glitch). Therefore we guessed
+that we were overwriting the currently executed code and
+that guess was correct. With that, we launched a payload that
+dumped everything we can read through UART.
+Unfortunately we then discovered the boot ROM does not
+seem to be mapped anywhere. It appears that hardware copies
+the contents of boot ROM to SRAM and the reset vector points
+directly to SRAM. That means the boot ROM is able to clean
+up parts of itself as it executes. To get the remaining parts
+(that were cleaned up), we had to glitch different parts of the
+boot ROM (running in SRAM) and gain code execution earlier
+and earlier on. Each time we dump more code, we gain more
+information and can develop more specific glitch targets. The
+details of these additional injected faults and their subsequent
+exploitation is beyond the scope of this paper.
+IV. CONCLUSION
+By looking at how voltage glitches introduce timing viola-
+tions into a digital circuit, we can find good snippets of code
+to glitch. Once a target is found, we can search for the right
+timing parameters for our crowbar circuit to cause a fault.
+We do an exhaustive search because it is difficult to predict
+how changing the parameters N and M actually affects the
+CMOS circuits. Finally, the injected fault introduces a software
+vulnerability that can be exploited to gain code execution. All
+of this can be done at a low cost thanks to the open hardware
+interface of the ChipWhisperer. With a custom script written
+for ChipWhisperer, we created a working attack on a security
+hardened consumer device
+
+
+PAPER 15: Microarchitectural Insights into Unexplained Behaviors
+under Clock Glitch Fault Injection
+
+Abstract. With the widespread use of embedded system devices, hard-
+ware designers and software developers started paying more attention to
+security issues in order to protect these devices from potential threats.
+Physical attacks represent an important threat to these devices, and
+fault injection is one of the major physical attacks. However, misunder-
+standing the effects of the fault injection would lead to proposing either
+over-protections or under-protections for these devices, thus affecting the
+performance/cost ratio and/or the security of the device. In this article,
+we provide a better representation of occurring fault, as a result of clock
+glitch, through novel models, in order to better understand the effects of
+fault injection. Also, we examine their dependencies with respect to the
+target device and the target program. Finally, we make use of the pre-
+sented fault models to break the control-flow integrity of a program by
+altering the value of the program counter, in order to provide an actual
+application example.
+
+
+Introduction
+Given how frequently embedded systems are used in various spheres of life, secur-
+ing them from malicious activities is fundamental. Sensitive data in embedded
+systems can be efficiently protected using cryptographic algorithms, which are
+frequently implemented in software on embedded microprocessors. However, such
+solutions can be vulnerable to attacks that seek to gain access to this private
+data. In particular, they might be vulnerable to physical attacks.
+Fault injection is a major and powerful active physical attack. Since the
+well-known Boneh et al. attack [7], where the authors were able to break an
+implementation of CRT-RSA by inducing faults into the computations, it has
+been an attractive research topic.
+It is possible to perform the fault injection in a variety of ways: by exposing a
+digital device to radiations [6], laser beams [11], or an electromagnetic pulse [13],
+by causing perturbations in the power supply [20] or in the clock signal [2], by
+altering the environment’s temperature [18], etc.
+
+1.1 Fault Injection Effects
+Several works [10,13,15,22,19,8] claimed that the effect of a fault injection or the
+success of a fault injection attack is somehow random. In some cases [10,19,8], the
+corruption is expressed as random bit flips or random byte faults. On the other
+hand, other works [13,15,22], described it as random data corruptions that are
+applied at the instruction set architecture (ISA) level, either on the instruction
+data or on the contents of the registers.
+Based on such variety, analyzing the vulnerabilities that fault injection can
+exploit is extremely challenging, and thus, developing countermeasures is sig-
+nificantly more complex. This will definitely result in either over-protections,
+which will affect the performance and the cost of the device, or conversely, in
+under-protections too, which will affect the security of the device.
+Recent studies [12,21,3,11,2] tried to explain the effects of the fault injection
+by looking at the lower levels of abstraction of digital systems. In particular,
+they focus on the register transfer level (RTL), microarchitectural level and/or
+binary encoding level of the instructions. In some cases [12,21], however, the
+authors only conducted simulations at ISA and RTL levels: they did not confirm
+the realism of their analysis with physical fault injections. In contrast, [3,11]
+performed physical fault injections, but they only focused on two kinds of faulty
+behaviors: complete-instructions skip and complete-instructions replay faults.
+In [2], authors offered a thorough analysis and justification of the experimental
+findings that show how the alignment of the instructions in the flash memory
+can affect the obtained faulty behaviors. Based on that, they proposed two fault
+models at the binary encoding level: Skip a specific number of bits and Skip
+and Repeat a specific number of bits, whose value is strictly related to the flash
+memory access size. However, in their work, they explicitly said that these two
+fault models explain many of the obtained faulty behaviors, but not all of them
+
+
+
+
+Conclusion and Future works
+A new binary encoding fault model has been presented and defined: the partial
+update fault model, which comes in two variations: the partial update from the
+precharge value and the partial update from the previous value fault models.
+These fault models allow explaining a wide range of the faulty behaviors that
+are obtained when performing clock glitch fault injection campaigns. Therefore,
+they can be used to perform vulnerability analysis of software codes against these
+fault attacks, and help in better designing efficient and low-cost countermeasures.
+We have also given an exploitation example: modifying the program counter
+can be achieved and explained through these fault models. Following that, we
+proposed a simple yet effective countermeasure against such vulnerability. We
+also examined the dependency of partial update from the precharge value fault
+model with respect to the target device and program.
+19
+In terms of future works, proper formalization of protections against the
+presented fault models will be very necessary. At software level, an automated
+framework made of vulnerability assessment followed by automatic code protec-
+tion would greatly improve the security of the targeted application. At a lower
+level, several approaches might be envisioned at different abstraction levels, from
+ISA down to transistor-level. Also, targeting other architectures will be impor-
+tant to see if the proposed models can be generalized to various architectures.
+Finally, although clock glitch has been used in this article to perform the
+fault injection, the presented results may be generalized to other fault injection
+techniques that rely on timing violations. This includes, for example, voltage
+glitch and electromagnetic fault injection.  
+
+
+
+PAPER 16:
+Peak Clock:
+Fault Injection into PLL-Based Systems via Clock Manipulation
+
+
+ABSTRACT
+Clock glitches are an inexpensive method to attack embedded sys-
+tems. Usually the intention is to alter the program flow or to extract
+cryptographic keys. However, the wide-spread use of Phase Locked
+Loops (PLLs) prohibits the direct reach-through on the internal
+clock. Hence, the commonly applied procedure to induce glitches
+on the external clock does not have any effect on these systems. In
+this paper, we show by means of two different ARM Cortex-M mi-
+crocontrollers, that despite the fact that the system clock is derived
+from the external clock signal by a PLL, fault injection by manip-
+ulation of the external clock signal is yet feasible. Even though
+the process of fault injection is impeded, our results indicate that
+the risk from this attack vector cannot be eliminated by the use of
+PLLs. We demonstrate this in practice by successfully performing a
+differential fault attack on an AES implementation.
+
+INTRODUCTION
+Fault injection is a common method to attack embedded systems.
+The general procedure is to induce a fault during runtime of a pro-
+cessor, with the intent to alter program data or the instructions exe-
+cuted. The objective of the fault injection can be manifold: Skipping
+password checks, extracting firmware, and revealing cryptographic
+keys.
+Various methods have been established for fault injection: Glitches
+on external supply signals (power supply, external clock input),
+light or Laser irradiation, EM-pulse injection, and exposure to ion
+beams [3]. All these methods have different characteristics and offer
+different trade-offs between precision and cost or effort. The latter
+methods are costly, but with the advantage to precisely control
+the location and time of the fault injection. On the other hand,
+glitch techniques are less precise, but are also non-invasive (i.e. no
+special preparation of the attacked device is required) and do not
+require specialized laboratory equipment. Hence, they are usable
+by a wide range of attackers. This means every device which needs
+at least basic protection against physical attacks, has to cope with
+glitch attacks. Generally these attacks are based on the violation
+of the required set-up and hold times of registers in the digital
+circuit [2, 5]. Concerning clock glitch attacks, it is a widespread
+assumption that the use of an internal Phase Locked Loop (PLL) is
+sufficient to counter such attacks [12]. The PLL processes the the
+signal from the external clock source and thus detaches it from the
+internal system clock, hence a glitch does not directly affect the
+system. This countermeasure comes with no cost, since a PLL is
+almost always available on modern microprocessors. The PLL is
+typically used as a frequency multiplier, that allow to increase the
+internal clock speed of the system.
+In this work, we investigated the influence of a PLL on the ability
+to glitch the attached system. Our results show, that the assump-
+tion that a PLL impedes a clock glitch attack is wrong in general.
+Moreover, on the basis of a clock glitch attack against an AES im-
+plementation running on an ARM Cortex-M0 core, we demonstrate
+that, with respect to the implementation, actually quite precise
+attacks are feasible. These results mean that many devices might be
+more susceptible to basic fault attacks than originally anticipated.
+The shape of the clock glitch signal is the key to fault injection
+into a system that derives its clock signal with a PLL. In contrary to
+a system without a PLL, the glitched signal must not be the usually
+used short spike, but a high frequency signal of sufficient length.
+Basically the fault injection is a selective overclocking of the system
+to a point where the maximal possible frequency is exceeded. This
+makes a precise fault injection harder, since it is not easily feasible
+to directly target a specific clock cycle.
+
+1.2 Contributions
+Hence, we present the following contributions:
+•An analysis of the effects of standard clock glitches on PLL-
+based systems.
+•A novel concept for fault injection via the clock signal, fo-
+cused on PLLs.
+•An experiment setup and practical evaluation of our concept.
+•The discovery of newly observed effects, such as instruction
+shadowing.
+•A successful DFA on an AES implementation running on a
+ARM Cortex-M0 processor, clocked via a PLL
+
+4 EXPERIMENT RESULTS
+In this section, we report our results of a practical application of our
+fault injection concept on device S and device X. We programmed
+the microcontrollers with three different firmwares: An evaluation
+program for both microcontrollers, described in Section 3.4, and an
+AES implementation for device S.
+With the PLL on the microcontroller in use, short glitches do
+not have an effect at all. However, with increased durations of the
+attack signal, fault injection into these devices is feasible. Thereby,
+a differing behaviour between device X and device S was observed.
+Using device S it took significantly more time to induce faults into
+the system as compared to device X
+
+4.1 Fault Injection into Device S
+Device S implements a rather slowly adapting PLL. Figure 7 shows
+the measurement results we obtained by the application of an in-
+put frequency step. The plot shows the frequency over time, the
+blue line indicates the external input clock, the measured inter-
+nal system clock is drawn in red. The device initially runs with
+its nominal maximum frequency of 48 MHz. With the increase of
+the input frequency from 4 MHz to 10 MHz, the internal frequency
+linearly increases at a rate of approximately 0.625 MHz μs−1. After
+the fallback to the regular input clock frequency, the internal clock
+frequency decreases with the same rate. Since the target output
+clock frequency is not reached by the PLL before the input clock
+switches back, we obtain a peak in the frequency diagram. The
+duration of the attack signal in Figure 7 was chosen sufficiently
+long to inject a fault into the evaluation code from Section 3.4. This
+requires an application of the attack signal for approximately 100 μs,
+hence the internal system clock reaches a frequency of 110 MHz.
+Despite the only indirect reach-through on the internal clock, we
+were able to inject faults with a high success ratio. Figure 8 shows
+the fault injection results regarding the test code from Section 3.4.
+The effect probability is plotted against the duration of the applied
+attack signal. Each data point is based on 100 experiment executions.
+We distinguish four different effects:
+•No Effect – The attack signal did not have any effect on the
+system.
+•Success – A potentially exploitable fault was injected.
+•Fault – Non-Exploitable effects were triggered, e.g. raising
+an interrupt or a jump into the hard fault handler.
+•Crash – Due to multiple errors, the CPU stopped operating
+and entered the lockup state.
+As can be seen in Figure 8, the attack signal does not have any
+effect on the system up to a duration of approximately 117 μs. At
+this point, there is a steep transition, with a difference of only 2 μs,
+to a successful fault injection, with a probability of around 85 % to
+90 %. Remarkably, this behavior remains constant up to a length
+of the attack signal of 134 μs, where another steep transition to
+the Crash-case occurs. Figure 9 shows a more detailled view of the
+relevant portions of Figure 8, i.e., the range between 110 μs and
+145 μs. With a duration of the attack signal exceeding 138 μs the
+DUT always crashes.
+To investigate the susceptibility of non-arithmetic functions, we
+modified the test program in Listing 1 by adding an additional ldr
+instruction. This instruction loads a value from a constant location
+(program counter value + constant value) in the flash memory
+into a given register. Therefore, we removed the two preparation
+instructions before the test loop and added two instructions at the
+beginning of the loop which initialize r10 via ldr. The modified
+firmware is stated in Listing 2.
+The modified test code on device S generated indeed differing
+results, hinting at different sensitivity of instructions against the
+attack. Figure 10 shows that faults now occur earlier at around
+105 μs. This indicates that there is no general threshold, but an
+instruction-dependent threshold at which fault injection starts. Ap-
+parently the ldr instruction is significantly more susceptible to an
+increased frequency than arithmetic instructions. It has to be noted,
+that this threshold does not hold for load-instructions in general
+— we observed that the load source address plays a major role, i.e.,
+SRAM behaves different than flash memory regarding faults.
+In comparison to the results with the first test code, the results
+with the modified test code show a lower crash rate after the critical
+threshold between 105 μs and 125 μs. However, the reason for this
+behavior cannot be given with certainty. We assume that due to
+the more susceptible ldr instruction, the program flow exits the
+loop at the cmp instruction with a higher probability. This will
+mask a potential crash caused by a failed execution of the branch
+instruction.
+4.2 Fault Injection into Device X
+As second device we investigated device X. it turned out to be much
+more sensitive to changes at the clock input. Again, we configured
+the device to operate at its maximum nominal clock frequency,
+which is 120 MHz. The PLL was configured to use the minimal
+possible input frequency of 4 MHz.
+Following the method described in Section 3.5, we measured the
+response of the internal system clock on the change of the external
+input frequency. The system’s reaction on the input clock step is
+a magnitude faster compared to device S. The internal frequency
+increases with roughly 80 MHz μs−1. This is shown in Figures 12
+and 13. Due to unavoidable limitations in the measurement of such
+short overclocking events with very few clock edges, the depicted
+data suffers from quantisation errors. Device X becomes unstable
+in the range between 150 MHz to 160 MHz. With its fast adaption
+to the input clock, this requires an application of the attack signal
+for 500 ns.
+Unlike device S, device X switches to its internal clock upon
+reaching the critical clock frequency with a high probability. This
+can be observed at the abrupt transition to 22 MHz in Figure 12. In
+some cases, we observed that the system keeps the external clock
+input active, as shown in Figure 13. The subsequent stabilization
+of the clock after the attack takes more than 3 μs. The oscillation
+frequency during the stabilization indicates, that the PLL in device X
+operates at a much higher bandwidth than in device S.
+We were not able to deactivate the switching behavior to the
+internal clock. However, even with the switch to the internal clock
+source, fault injection is still feasible. Figure 14 shows the measure-
+ments results for device X. We measured each duration of the attacks
+signal 1400 times with the test code provided in Listing 1. As can be
+seen, the success rate is quite low, in the best case around 8 %. For
+device X we did very seldom observe the Fault-case (cf. Section 4.1)
+or crashes. Hence, we depict only the two relevant test outcomes:
+No Effect and Success. We noticed that the actual frequency of the at-
+tack signal has an influence on the results. We tested three different
+input frequencies of 8.1 MHz, 10.9 MHz, and 16.7 MHz. Though the
+differences are not big, the highest frequency performed slightly
+better then the lower ones and higher frequencies require less glitch
+duration.
+4.3 Instruction Shadowing
+The experiments revealed an effect that we call instruction shadow-
+ing. Due to this effect, faults in specific instructions have precedence
+while faults in others are only observed seldom. Since the glitch is
+rather broad, it always affects several dozens of instructions which
+have different sensitivity against such overclocking. The timing
+margin for some instructions appears to be rather generous, making
+them robust, while others are operating closer to the limit, making
+them more susceptible. Thereby, sensitive instructions can shadow
+a more robust instruction in their temporal vicinity.
+
+6.1 Software-Based Countermeasures
+Generally there are two software-based approaches against fault
+injection: Temporal redundancy and parity based redundancy. In
+the literature there are publications which demonstrate, these tech-
+niques can broken even with clock glitching attacks. E.g. Yuce et al.
+[15] showed with application of precise clock glitches, that state-of-
+the-art control flow protection techniques can be broken. However,
+this work did explicitly not consider a PLL in the attacked device
+and hence it remains an open question if the described attacks will
+be feasible in this setting. Our results give an indication that such
+an attack is highly unlikely. The effective clock signal generating
+faults is far less precise, as these proposed attacks would require.
+Since the discussed targets are not high security controllers but
+regular embedded systems, one could argue that these counter-
+measures will in most cases provide an sufficient protection level
+against glitching attacks. In practice, with the otherwise required
+increase in effort, also other attack methods have to be taken into
+consideration.
+6.2 Hardware-Based Countermeasures
+Microcontrollers could be hardened against this kind of attack by
+modifying the built-in PLL: Since the PLL will leave its locked-in
+state when the external clock input signal is tampered with, an
+obvious countermeasure is to raise an interrupt signal and jump
+into a fault handler. The advantage of this technique is the low cost
+of implementation, since it requires only very little additional chip
+area.
+A similar technique has been proposed by Miura et al.[10] to pro-
+tect against fault injection by electromagnetic pulses. They attached
+a ring oscillator to a digital clock manager primitive (a configurable
+PLL) on an FPGA, which allowed them to detect EM-pulses by the
+loss of the locked-in state of the PLL. However, in this context
+the effectiveness of this countermeasure has to be evaluated first.
+The attacked device can be supplied with a tampered clock before
+power-up, or the attacker keeps the PLL in the locked state by
+increasing the external clock frequency sufficiently slowly. Because
+the increment in frequency for attacking the device is quite small,
+this might not be detected.
+Another approach is switching to an internal clock source for
+sensitive operations, which is often available. However, this has
+the disadvantage of the loss of synchronization to peripherals, the
+additional overhead, and will not protect against voltage glitch
+attacks. Alternatively one could try to monitor the clock signal
+with an internal clock source as a reference [9]. However, this will
+result in additional power consumption.
+Finally, there are algorithm-specific countermeasures, imple-
+mented in cryptographic hardware accelerators. These are based
+on spatial redundancy and effective against all kinds of fault injec-
+tion techniques. Since this is a hardware feature which may imply
+further cost, this option is not present in every system and hence
+often not viable.
+7 CONCLUSION
+The use of PLLs to derive an internal clock signal is a significant
+impediment for clock glitching attacks. However, it does not nec-
+essarily prohibit this attack method completely. In this work, we
+demonstrate that fault injections by manipulating the external clock
+input on embedded systems using the internal PLL are still feasible.
+Though the usually induced short glitches on the clock input are
+ineffective, an adapted overclocking for a limited period is capable
+of injecting faults into the system. This behavior is demonstrated in
+practice using a special testing program on two different microcon-
+trollers based on the ARM Cortex-M architecture. In both systems,
+we were able to induce faults that led to data errors and changes in
+control flow. To prove the practical feasibility of our fault injection
+method, we successfully performed an attack on an AES imple-
+mentation, based on Differential Fault Analysis. Hence, our results
+falsified the assumption that PLLs protect a system against clock
+glitch attacks. Our approach is able to successfully inject faults into
+systems running on a clock signal derived from a PLL
+
+
+PAPER 17: Practical Analysis of Embedded
+Microcontrollers against Clock Glitching
+Attacks
+
+Abstract
+Clock glitching attacks are one of the different types of hardware fault injections studied
+nowadays. By glitching the clock, it is possible to change the target’s hardware behavior,
+either by corrupting or simply skipping CPU instructions. Since the software is not
+prepared to handle a device that has been tampered with, an attacker can exploit such
+vulnerability and take over the control flow of the program. Multiple attacks can then
+be performed, such as forcing the device to exiting loops or dump its own memory.
+This work applies such technique against AVR microcontrollers by implementing a
+modular glitcher environment. Such environment allows not only for fine-tuning of at-
+tacks, but also a brute-force algorithm for finding the glitching range to be implemented.
+By executing multiple repeatable experiments, both on handcrafted and compiled code,
+it demonstrates that such architecture is vulnerable against these attacks by introducing
+faults that were not expected and cannot be handled by the software. The implications
+of this regarding the security of the program are discussed in this work. Additionally,
+a critical analysis of the disadvantages and issues of the approach used and how it can
+be further improved is provided
+
+1 Introduction
+Microcontrollers are extremely popular nowadays, being present in numerous devices
+and systems. They are designed to be embedded into small systems and interact with
+the environment, either directly through sensors and acuators, or through other digital
+systems. The most common example of embedded microcontrollers are smart cards,
+used for numerous scenarios, such as personal identification and access control. On
+such devices, the software limits the device’s interaction with the outside world, such
+as limiting which how much data can be obtained from it upon request. However, such
+devices assume that they have not been tampered with, neither that it was previously
+modified in a manner that the system behaves differently than original (i.e. the system
+behaves nominally).
+Previous studies demonstrated that smart-cards and microcontrollers in general are
+vulnerable to fault injection attacks, where, by directly injecting a fault through the
+hardware, it is possible to extract information [KK99, AK96, BGV11, KK99] or bypass
+security controls on the executing code [And01]. In software attacks, the device is
+attacked from the software perspective, meaning that the issue is on the code. However,
+with hardware attacks, the assumption that the hardware is stable and safe is no longer
+true, since the device can now be controlled from the hardware perspective. Such
+attacks can be done in precise moments or with specific methods to target different
+parts of the hardware, such as the CPU’s instructions and registers or the device’s
+memory. This allows an attacker not only to change the behavior of the program, but
+also to extract data or bypass software protections by simply attacking specific regions
+of the hardware. Since the code does not expect that the hardware is compromised, it
+continues to execute as normal. This introduces a security issue since the code can now
+be modified in realtime, allowing an attacker to be able to change the original behavior
+of the program. The number of possibilities that a fault injection attack opens are not
+small: it could be used to extract data from the device, bypass security features, skip
+or repeat loops, and so on.
+One of the most common fault injection techniques, called clock glitching, is analysed
+in this work, where a fault is injected on the clock signal used by the microcontroller.
+It consists of injecting small faults into the clock signal with the goal of glitching the
+device’s CPU. If successful, the CPU can either skip code instructions, or compute the
+wrong data, allowing an attacker to change the execution flow of the code.
+How clock glitching attacks work and how the target device was prepared and selected
+are described in Section 2, being followed by the description of the dedicated hardware
+used on the attack in Sections 3 and 4. Multiple successful experiments were performed,
+their results described and explained in Section 5. A discussion regarding what was
+achieved with this work and how it could be further improved is provided in Section 6,
+followed the conclusion of this work in Section 7
+
+
+5 Results
+This work analysed three scenarios against glitching: unconditional loops, conditional
+loops and the strcpy function from the standard C library. The first two were selected
+with the goal of demonstrating that loops can be glitched once their branch instructions
+are corrupted. The last one is done to demonstrate that C code can also be glitched,
+and also to demonstrate a real-world scenario where a simple function allows leakage of
+data once glitched.
+Unconditional loops
+For the first experiment, it was easier to glitch unconditional loops without code inside
+(infinite loops). For that, both jumps relative jumps instructions were studied and
+tested. For a more realistic analysis, code with multiple loops and code inside them
+were also experimented with.
+Jumps
+A jump instruction is used to change the current position of the program counter,
+pointing it to somewhere else in the memory. It consists of loading the specified value
+into the internal CPU register PC, changing the control flow of the code. The instruction
+JMP does this task on AVR microcontrollers, and it takes three clock cycles [Atm98]. It
+is important to note that this instruction is longer than other instructions: while most
+of the instructions on the AVR architecture are 16-bit long, this one requires 32 bits.
+The reason why instruction requires twice as many bits is because it holds a full 22-bit
+memory address on it, which does not fit inside one single 16-bit instruction. Therefore,
+for this instruction to be execute, it requires two clock cycles for fetching the full address
+(6 most-significant bits on the first cycle and the 16 least-significant bits on the second)
+and one extra clock cycle for loading it into the program counter [Atm10].
+For glitching this instruction, an infinite loop using it was created, as shown in code
+5.1 at lines 1 and 2. Using an infinite loop breakme allows the glitcher to be able to
+hit the instruction whenever possible, since the CPU will always be running the JMP.
+When glitched properly, the instruction is skipped, taking the execution flow to the
+second loop, glitched, located between lines 4 and 7. This second loop is responsable
+for keeping the GPIO pin 1 low, allowing the DDK to know that this was a valid glitch.
+Finally, since the JMP instruction takes three clock cycles, and there is no inside the
+loop, the glitcher will always hit it. By analyzing the graph 5.1, it is clear that glitching
+for two clock cycles is enough to glitch the instruction, which results in skipping it.
+A more precise and useful analyzis of glitching the JMP can be done by introducing
+a second loop with irrelevant code inside, as shown in code 5.2. In this second code snippet, the first loop breakme presented before still exists, but then the code hits a
+second loop, second, which has code inside. Although the code inside this new loop
+is related to the LEDs connected to the microcontroller board, understanding it is not
+necessary.
+The timing diagram for the glitches of the code 5.2, shown in the figure 5.2, shows
+a clear gap in the timeline where no successful glitches were achieved. In this gap,
+the instructions for blinking the LEDs are running, and since glitching them will not
+force the flow out of the current loop, they are not relevant. It is also possible to see
+that glitching in sequence also force second loop to exit, which is due to the fact that
+the glitcher is not precise enough and will hit multiple instructions, and also due to
+internal delays. Therefore, there is a chance that the glitcher is hitting the second JMP
+instruction, even though the second delay is set to zero
+Relative jumps
+Another type of unconditional branch is the relative jump, which is represented by the
+instruction RJMP. This instruction works by changing the flow of the program to the
+address resulting of the sum between the current program counter address and the
+specified value in the instruction, plus one. This instruction also takes two clock cycles
+instead of three of the JMP [Atm98], since here the address is 12-bit long (while the
+opcode itself occupies four bits), instead of 22-bit as the previous one. Since this is
+a relative and not a direct branch, its argument consist of an offset from the current
+location, which is considerably smaller than the full address. Therefore, one clock cycle
+is necessary for executing the arithmetic operation for calculating the new address, while
+another is required for effectly loading it into the register [Atm10].
+The code snippet 5.3 shows how the RJMP was initially tested. The concept is the same
+as the previous instruction - an infinite loop that forces the instruction to be glitched at
+any moment. Just like with the JMP, the RJMP can be glitched, which causes the CPU
+to skip the instruction, allowing it to get out of the breakme loop and hit the second
+loop, glitched. This second loop is then used to allow the DDK to detect the glitch.
+However, as shown in 5.3, the RJMP can also be glitched within one to three clock cycles,
+while the JMP requires exactly two clock cycles of glitching to be always skipped.
+Just like the JMP, to have a more precise analysis of the RJMP instruction, a second
+loop second with code inside of it was introduced, as shown in code 5.4. By testing
+all possible combinations inside a finite range, the timing graph 5.4 shows both glitches
+being executed, being the first glitch responsable for the breakme loop and the second
+for the second. It is clear on the graph that the second glitch can be execute either right
+away (since the internal delays of the glitcher are enough to get through the contents
+of the second loop) or a while after, which means that during the execution of the loop
+itself no glitch combinations are useful.
+The exploitable code
+The code 5.10 shows a simplified version of the attacked code. The original code has
+calls to enable the external clock and UART and to synchronise with the DDK, but
+those parts of the code are not relevant for this analysis. It consists of seven global
+variables (lines 1 to 7), with the one right in the middle (line 4) the string that will
+be copied to a local buffer. The program begins by defining a local variable, buffer,
+256 bytes long, which will be used to store the copied string. After that, the strcpy is
+called (line 13), passing as first argument the destination buffer (buffer) and the origin
+string (foobar). Later, buffer is printed using fputs (line 14) and the codes enter an
+infinite loop of NOP instructions (line 16).
+The goal of this attack is to glitch the strcpy function exactly when the null byte
+that terminates the foobar string is being checked. By doing that, the next string in
+the memory will be copied, until the function hits another null byte. Once printed over
+the UART port, it would be possible to see multiple strings (i.e. the original foobar
+string and one of the secret strings around it).
+strcpy internals and padding
+Part of the disassembled code of the strcpy function is shown in code 5.11. The part
+here discussed is the relevant one, since it contains the actual loop that copies the string.
+It works by loading into the register r0 the current byte pointed by the special register
+Z and then storing it into the address pointed by the special register X. Both registers are
+incremented after being used, which means that the pointer advances in the memory.
+Finally, strcpy checks if the byte is null by running it through an AND instruction (which
+sets the zero flag if the value is zero) and looping if not by using the BRNE instruction.
+Since the goal is to copy even when a null byte is found, glitching the loop (BRNE) is
+not useful. As previously shown in the experiments, glitching this instruction results in
+Results
+Extensive tests were done for finding the timing to glitch this code. By specifying a long
+range of delay values, it is possible to get the whole original string to be copied before
+glitching. Initially only one secret was captured, but by reproducing the attack and
+trying to locate the timing of a second and third glitch, it is possible to copy multiple
+strings around the original one
+
+6 Discussion
+As shown in this work, clock glitching can corrupt instructions on AVR microcontrollers
+in a predictable and repeatable fashion. The design of the implemented glitcher in
+this work was outlined in Section 4. Experiments not only with unconditional and
+conditional loops were done, but also with compiled C showing that the code does not
+necessarily have to be designed specifically for being attacked. As shown in Section 5,
+even though the glitcher has internal delays, attacks can be done.
+By controlling the clock, the CPU can be directly attacked, allowing an attacker to
+compromise the entire system, since the CPU requires its clock to work (i.e. if the clock is
+stopped, the CPU is halted). It is possible then to glitch in specific moments, targeting
+specific instructions on the executing code, as it was done in this work. Considering that
+the code running on the microcontroller is previously known by the attacker, finding
+an attack vector can be easily done. By adjusting the glitcher to hit the necessary
+instructions, an attack could change the original execution flow of the program, allowing
+the attacker to skip or repeat loops, calls or simply corrupt instructions in a way that
+wrong values are loaded or calculated. As shown in this work, functions like the strcpy
+are vulnerable to such attacks, allowing data to be extracted from the memory. Such
+techniques have been previously proposed by other as well as an attack vector for smart
+cards [KK99, AK96], where by glitching the loop it is possible to dump the whole
+memory. When working with an unknown environment, where the attacker does not
+have previous access to the executing code, glitching the precise instruction can be
+considered more difficult. However, in this work most of the attacks were done by brute-
+force - a process that can take from hours to days of execution. Although slower, brute-
+force attacks can be used when glitching the clock signal to find the exact parameters
+that will glitch interesting instructions.
+An attacker could also use heuristic methods to find out such parameters, acceler-
+ating the search [CPB+13]. To determine if a glitch is interesting or not in a case of
+dumping data after the string, the exposed information can be analysed and checked
+regarding its contents if machine code, internal keys or any other relevant information
+was extracted. Note that, when binary information is dumped (like machine code),
+functions like strcpy might get stuck on the null byte, since it represents the end of an
+string. Although it is possible to circumvent this issue by continuously glitching, this is
+not always trivial, since, as shown in Section 5, different values can be loaded on each
+glitch. This would require an extra analysis to find out if that byte was actually a null
+byte or another extract one from the memory.
+It is important to note that, since the target in this work was an AVR microcontroller
+with a RISC CPU, the relatively simple pipeline used by the AVR architecture must
+be considered as well. By fetching instructions while executing others, a glitch on one
+instruction could corrupt the next one, since both execute on the same the clock cycle.
+45
+6 Discussion
+The typical approach to address this issue is to insert a NOP between each instruction
+from the original code, as done with the strcpy function in this work. In case the
+next instruction gets corrupted due to the clock glitch, no original code instruction is
+damaged. However, this solution is not always available, since the code is not always
+modifiable (or even known). Even though the pipeline was a known issue from the
+beginning, during this work it was not consired on the initial experiments, only on the
+last one. By analysing the instructions available to the AVR architecture, it is clear that
+some instructions take more than one clock cycle [Atm98], even though this is a RISC
+architecture [Atm12]. This is due some instructions either require bigger operands, such
+as the JMP instruction (where the operand does not fit inside the whole instruction),
+or require a new instruction to be fetch, such as branch instructions (where the first
+instruction after the branch has completed has to be fetch before being executed). This
+is also interesting because, by having multiple fetches, it is possible to glitch only a part
+of the instruction, corrupting only part of it (e.g. its operands). This would make the
+instruction behave erractly, which could lead into a valid scenario where an attack is
+possible (such as jumping to the wrong address in the memory, for example). Finally,
+note that, since a clock glitch forces the target to run outside its normal operation range,
+the behavior is unknown and unpredictable. Therefore, the chance that, by tweaking
+the glitch (such as increasing the frequency or changing the wave parameters), the next
+instruction does not get corrupted is not completely excluded, even though it did not
+happen during this work.
+This work can be expanded for any RISC CPU that is vulnerable to a clock glitch-
+ing attack, and in such scenarios, the pipeline would most likely still be present and
+interfere with the glitches. However, if the target was a CISC (Complex instruction set
+computing) CPU, it would be, in theory, possible to hit parts of the execution of the
+instruction, since CISC CPU instructions can take more than one clock cycle. Note
+that such instructions perform multiple single-clock low-level operations, thus allowing
+an attacker to glitch a specific operation within the same instruction. In instructions
+with both data read and write into the memory, for example, it would be possible to
+glitch only the read, forcing the CPU to not read the correct data from the memory, or
+the write, forcing the CPU to not write the correct data to the memory. However, mod-
+ern CISC architectures are based on RISC-like micro-operations. Hence, many many of
+the observations for RISC architectures will apply to micro-operations as well.
+In this work the target was running without its internal PLL (i.e. the clock received
+from the external source is the clock used internally). However, if activated, the PLL
+could interfere on a single clock glitch, since the glitch would pass through it first. Even
+though longer glitches (i.e. multiple clock cycles as width) might be able to pass through
+it, but there is no guarantee about its repeatability and accuracy. Not less important,
+the glitcher could be used to glitch other clock sources without providing it directly to
+the target. For example, by grounding a quartz crystal oscillator, it would be possible
+to force it to a logic zero. This allows the attacker to induce values on the clock signal,
+generating clock cycles that are at a higher frequency than the oscillator produces. The
+concept of such attack is the same as the one demonstrated in this work, except that
+there is the chance of a clock drift between different clock domains, since not all of them
+are generated by the DDK’s PLL. Finally, the same principle can be applied by taking
+46
+6 Discussion
+an external clock and passing it through the glitcher instead of generating it internally,
+since a glitch can be generated by simply feeding a logic zero instead of the original
+signal as output for short amounts of time.
+
+
+
+PAPER 18: Shaping the Glitch:
+Optimizing Voltage Fault Injection Attacks
+
+Abstract. Voltage fault injection is a powerful active side channel attack that modifies
+the execution-flow of a device by creating disturbances on the power supply line. The
+attack typically aims at skipping security checks or generating side-channels that
+gradually leak sensitive data, including the firmware code. In this paper we propose
+a new voltage fault injection technique that generates fully arbitrary voltage glitch
+waveforms using off-the-shelf and low cost equipment. To show the effectiveness of our
+setup, we present new, unpublished firmware extraction attacks on six microcontrollers
+from three major manufacturers: STMicroelectronics, Texas Instruments and Renesas
+Electronics that, in 2016 declared a market of $1.5 billion, $800 million and $2.5
+billion on units sold, respectively. Among the presented attacks, the most challenging
+ones exploit multiple vulnerabilities and inject over one million glitches, heavily
+leveraging on the performance and repeatability of the new proposed technique. We
+perform a thorough evaluation of arbitrary glitch waveforms by comparing the attack
+performance against two other major V-FI techniques in the literature. Along a
+responsible disclosure policy, all the vulnerabilities have been timely reported to the
+manufacturers
+
+ntroduction
+Side-channel attacks are considered among the most powerful physical attacks against
+embedded devices and secure (e.g., smartcards) or specialized hardware (e.g., FPGAs or
+ASICs). There exist two classes of side-channel attacks: passive and active [SMKM18].
+Passive attacks exploit information that is spontaneously leaked by the device such as power
+consumption [BCO04], timing information [Koc96], electromagnetic emissions [GMO01]
+or even acoustic emanations [BDG+10]. Active attacks (also known as fault injection
+attacks), instead, influence the system with internal or external stimuli. For instance,
+optical fault injection is a powerful technique that exposes the silicon to high intensity
+light sources, e.g., laser and UV, to induce errors or tamper with the data. Since this
+technique involves decapsulating [SA02] the chip from its package, technical expertise and
+specialized equipment are required. Electromagnetic fault attacks (EM-FI) avoid the need
+of chip decapsulation since faults are injected through the package using an EM injector
+[SH07]. However, some degree of specialized equipment, e.g., a high precision positioning
+system [OGM17] or an RF amplifier, can still be necessary to conduct complex attacks.
+Given the level of sophistication required by some fault injection attacks, capabilities
+and performance are not the only relevant factors for classifying and evaluating them:
+the cost also plays a crucial role. In [BBKN12] Barenghi et al. consider as low cost the
+injection methods requiring less than $3000 of equipment, which are within the means of a single motivated attacker. The authors point out that “these fault injection techniques
+should be considered as a serious threat to the implementations of secure chips that may
+be subjected to them”. Moreover, the Common Criteria provides a rating for evaluating
+the attack potential [Com17], that assigns higher severity scores to side-channel and fault
+injection attacks that require little special equipment and can be mounted under lower cost
+and expertise. This metric is used in practice by testing laboratories, in order to quantify
+the resistance of secure devices against these classes of attacks.
+In this work, we focus on power supply fault injection, also called voltage fault injection
+(V-FI), a technique that involves creating disturbances, namely voltage glitches or spikes,
+on an otherwise stable power supply line. V-FI is a widely used technique because of its
+effectiveness and, in particular, its low cost. Both in the literature and in industry, efforts
+have been made to ease mounting complex V-FI attacks [OC14, O’F16]. For instance,
+commercial tools and open source frameworks such as the ChipWhisperer1 provide an
+abstraction layer for controlling the attack parameters at the software level, reducing
+the electronic skills required. This allows for scientists with different background (e.g.,
+algorithms, statistics, machine learning) to focus on the attack logic and apply their own
+expertise to the hardware side-channel field. A recent study [ZDCR14] shows that the
+disturbances induced in the chip via V-FI are effectively caused by the rising and falling
+edges of the injected glitch. In the literature however, the injected pulses are typically
+generated as a squared or v-shaped voltage signal, described by a limited set of parameters
+such as supply voltage, glitch lowest voltage and pulse duration.
+In this paper, we move one step forward and propose a new V-FI technique which is
+based on fully arbitrary voltage glitch waveforms. We analyse the attack performance,
+repeatability and feasibility, in terms of generating this type of glitches using off-the-shelf
+and low cost equipment. In order to experimentally assess the effectiveness of the arbitrary
+glitch waveform approach, we present six unpublished attacks against general purpose
+microcontrollers from three manufacturers. The injected faults are used to alter the
+execution-flow of the integrated serial bootloader, skipping security checks or generating
+side-channels that can, in turn, be exploited to gradually leak sensitive data, including the
+firmware code. We divide the firmware extraction case studies in two classes based on the
+design and runtime complexity. In the former, the number of successful faults required
+is from low to moderate (≤100 k) with a straightforward attack logic. On the contrary,
+the second class represents particularly challenging attacks that require several days to
+complete, exploit multiple vulnerabilities and inject over one million glitches. Finally, we
+perform a thorough evaluation of arbitrary glitch waveforms by comparing the attack
+performance against two popular V-FI techniques in the literature. All the targets studied
+in this paper were selected by considering (i) general availability and diffusion of the MCU
+and market share of the manufacturer (ii) presence of an embedded serial bootloader
+for flash programming (iii) notable suggested fields and applications such as automotive,
+healthcare, IoT. Moreover, since our goal is to study the effectiveness of arbitrary glitch
+waveforms as a general V-FI technique for microcontrollers, we selected target devices
+having heterogeneous architectures and instruction sets.
+We selected firmware extraction for our case studies since firmware protection plays
+a crucial role in several industrial applications, e.g., for IP and sensitive data protection.
+Moreover, firmware extraction is a fundamental part of the reverse engineering process
+performed by researchers to assess the security of embedded systems, ranging from domestic
+appliances to critical devices such as automotive control units and health devices (e.g.,
+defibrillators, heart rate monitors, implants). In this respect, the six unpublished attacks
+presented in this work contribute, by themselves, to the state of the art, demonstrating
+the unsuitability of the attacked devices for security sensitive applications. Along a
+responsible disclosure policy, all the vulnerabilities that we have found and the firmware extraction attacks have been timely reported to the manufacturers: STMicroelectronics,
+Texas Instruments and Renesas Electronics
+
+Conclusion
+In this paper we have studied, for the first time, how voltage glitches with arbitrary
+waveforms affect the success and efficiency of an attack. We have also investigated the
+feasibility of identifying a valid set of attack parameters, including the glitch waveform,
+in an automated and unsupervised way, and showed the feasibility of generating these
+type of glitches using low cost equipment. Furthermore, we have presented novel attacks
+on six widely used microcontrollers from three manufacturers. These attacks target the
+bootloader interface and allow for extracting the firmware from the internal protected flash
+memory. Following a responsible disclosure policy, we have timely reported the security
+flaws to STMicroelectronics, Texas Instruments and Renesas Electronics. Finally, we
+have evaluated the performance improvement provided by the arbitrary glitch waveforms
+against two other major voltage glitching techniques. The results showed an increment in
+the firmware extraction speed and, in particular, a significantly lower amount of injected
+glitches required to complete the attack.
+Regardless of the arbitrary glitch waveform technique, we believe that the presented
+attacks are valuable. They provide evidence that an attacker, even with limited resources,
+can use voltage fault injection to bypass the protection mechanisms offered by the mi-
+crocontrollers under test. Thus, we certainly discourage the adoption of this kind of
+microcontrollers for security or safety-involved systems. Even when microcontrollers come
+with some basic protection mechanisms and voltage supervisors, we have shown how
+these can be easily and systematically bypassed, allowing for efficient firmware extraction.
+Moreover, firmware extraction is problematic by itself for intellectual property. So, indepen-
+dently of the criticality of the application, companies should be aware that the protections
+implemented in budget microcontrollers are insufficient to protect the know-how in the
+firmware and, consequently, devices could be cloned or tampered by criminals with a low
+effort and investment
+
+
+
+PAPER 19: System Clock and Power Supply Cross-Checking for Glitch
+Detection
+
+bstract. Cryptographic systems are vulnerable to different kinds of fault injection attacks. Sys-
+tem clock glitch is one of the most widely used fault injection methods used in different attacks.
+In this paper, we propose a method to detect glitches in system clock to fight against clock glitch
+based fault attacks. We implement the proposed scheme in Virtex-5 FPGA and inject clock glitches
+into FPGA, results show that the proposed scheme can be easily implemented in both ASICs and
+FPGAs with very small overhead. Detection results show that the proposed scheme can detect very
+high frequency clock glitches with very high detection rate.
+Keywords: Fault injection, Clock glitch, Hardware security
+1 Introduction
+Cryptographic systems are vulnerable to different kinds of fault injection attacks. Faults in crypto system
+may cause errors in the output and the faulty output can be used by attackers to recover the secret key
+information. Previous works on Differential Fault Analysis (DFA) of different crypto algorithms [1,2,3]
+show that attackers can inject faults into crypto systems to recover the whole key using only several
+pairs of correct and faulty ciphertexts. Another attack method, Fault Sensitivity Analysis (FSA), shows
+that attackers even do not need the ciphertext for attacks, only the correctness of the computation result
+is enough for attacks [4,5,6,7]. Thus different kinds of fault injection attacks are serious threat to the
+security of cryptographic systems.
+To protect cryptographic systems against different kinds of fault injection attacks, some protection
+methods have been proposed to detect faulty results. Countermeasures based on faulty result detection
+make use of techniques such as error detection codes to detect the errors in the output [8,9]. Such
+methods can detect errors in the output and avoid the attackers to make use of faulty ciphertext for
+analysis, but they are not resistant to FSA attacks which only require the information that whether the
+output is correct [5]. Thus, other methods to detect disturbance used for fault injection has been devised
+[10,11,12,13]. Commonly used system disturbance for fault injection are system clock glitch [14,15], power
+supply disturbance [16], and electromagnetic (EM) [17], etc.. In this paper, we focus on the detection of
+glitches in system clock.
+In this paper, we devise a method to detect clock glitches using ring oscillator (RO) in FPGA, and RO
+and voltage-controlled oscillator (VCO) in ASICs. We implement Advanced Encryption Standard (AES)
+protected with the proposed scheme in a Virtex-5 FPGA, we inject glitches into the system clock and
+measure the detection rate of the proposed scheme. Results show that the proposed scheme can detect
+very high frequency clock glitches with a high detection rate. Meanwhile, it can be easily implemented
+in both FPGAs and ASICs with very small resource overhead.
+The rest of this paper is organized as follows. Preliminaries of fault injection using clock glitches are
+given in Section 2, followed by introduction of previous works. In Section 3, we introduce the proposed
+method used to detect clock glitch, and analysis about the proposed scheme will be given. In Section 4,
+we present the clock glitch detection results of the proposed scheme, and the implementation overhead
+results. Finally, we conclude this paper in Section 5.
+
+
+4.2 Clock Glitch Detection Result
+In the experiment, we use Rigol DG4162 to generate 18 MHz to 50 MHz clock signal, and use this signal
+to generate 0.5 time frequency clock for AES computation (9 MHz to 25 MHz). Meanwhile, we use a
+DCM module in the Spartan-3A FPGA on SASEBO-GII board to generate 5 times frequency glitch
+signal (90 MHz to 250 MHz). For each clock frequency, we run glitch injection at the 9th round 10,000
+times, and summarize the clock glitch detection rate as in Fig. 6
+Fig. 6 shows the clock glitch detection rate for two different ROs, RO1 (414.1 MHz) and RO2 (368.5
+MHz). It shows that:
+– RO1 can detect up to about 207 MHz glitch with almost 100% rate, while RO2 can detect up to
+about 185 MHz glitch frequency with 100% rate. This is the same as the conclusion in Section 3.3.
+– Higher frequency clk has overall higher detection rate for injected clock glitches. For example, RO1
+has higher error detection than RO2 based scheme.
+To improve the clock glitch detection rate, we propose to combine the use of more than one detection
+modules, each with independent clk signal. Thus the system will miss the clock glitch only if all detection
+modules miss the clock glitch. Assume for one detection module, the detection rate is p, then for n
+detection module, the detection rate should be 1 −(1 −p)n instead, which is much higher than p. Which
+means that the combination of multiple detection module will significantly improve the detection rate of
+the proposed scheme. We combine two detection modules for glitch detection and present the results in
+Fig. 7 shows the detection rate for two designs each with two detection modules, working with
+two different ROs respectively. Results show that the detection rates for these two designs improve
+significantly comparing with the single detection module design in Fig. 6. For example, the design with
+373.3 MHz plus 276.2 MHz ROs have much higher detection rate than the design with only 368.5 MHz
+RO. Thus more detection module can be combined together to further improve the detection rate. We
+will show that although this scheme can significantly improve the detection rate of clock glitches, the
+resource overhead will be still very small 
+
+Overhead Result of the Proposed Scheme
+We summarize the resource overhead results of the proposed scheme in Table 1. Table 1 has four rows,
+which are for unprotected AES, AES protected with one detection module, two detection modules and
+three detection modules respectively. For FPGA resource evaluation, we use Xilinx ISE 14.6 with default
+settings for all the implementations. For integrated circuit resource evaluation, the implementations (with
+and without protections) are modeled in VHDL and synthesized in Synopsys Design Compiler using a
+45-nm standard-cell library (FreePDK45). The power and area overhead of the protection schemes are
+estimated under typical operation conditions assuming a supply voltage of 1.2V and a temperature of 25
+Celsius degree. The resource utilization results for both FPGA and ASIC implementations are shown in
+Table 1.
+Table 1 shows that the proposed scheme has very small resource overhead. For example, for AES
+protected with one detection module, the design needs 7.9% more slice registers, 7.1% more slice lookup
+tables (LUTs), and 4.6% more LUT flip-flops (FFs) than the original design. For design with multiple
+detection modules, the overhead increase slightly. For example, the design with two detection modules
+needs 15.9%, 11.4% and 10.7% more slice registers, slice LUTs and LUT FFs overhead respectively. For
+ASIC implementations, the protected implementation with one protection module consumes 4.63% more
+area resource than the original design, and designs with two and three protection modules need 7.62%
+and 11.56% more area resource overhead respectively.
+Results in Section 4.2 and Section 4.3 show that the proposed scheme has a high glitch detection
+rate for high frequency clock signals. Meanwhile, the proposed scheme can be eaisy implemented in
+both FPGA and ASCI with small resource overhead. The proposed scheme has high robustness against
+environmental variations, and more than one modules can be used together to further improve the clock
+glitch detection rate.
+5 Conclusion
+We present a clock glitch detection method in this paper which can be easily implemented in both
+FPGAs and ASICs with very small resource overhead. Glitch injection experiment results on FPGA
+show that the proposed scheme can effectively detect high frequency clock glitches. Future work will
+be countermeasures against other kind of fault injection methods, and detection methods for higher
+frequency clock glitches.
+
+PAPER 20: 
+The Forgotten Threat of Voltage Glitching:
+A Case Study on Nvidia Tegra X2 SoCs
+
+Abstract—Voltage fault injection (FI) is a well-known attack
+technique that can be used to force faulty behavior in processors
+during their operation. Glitching the supply voltage can cause
+data value corruption, skip security checks, or enable protected
+code paths. At the same time, modern systems on a chip
+(SoCs) are used in security-critical applications, such as self-
+driving cars and autonomous machines. Since these embedded
+devices are often physically accessible by attackers, vendors must
+consider device tampering in their threat models. However, while
+the threat of voltage FI is known since the early 2000s, it
+seems as if vendors still forget to integrate countermeasures.
+This work shows how the entire boot security of an Nvidia
+SoC, used in Tesla’s autopilot and Mercedes-Benz’s infotainment
+system, can be circumvented using voltage FI. We uncover a
+hidden bootloader that is only available to the manufacturer for
+testing purposes and disabled by fuses in shipped products. We
+demonstrate how to re-enable this bootloader using FI to gain
+code execution with the highest privileges, enabling us to extract
+the bootloader’s firmware and decryption keys used in later boot
+stages. Using a hardware implant, an adversary might misuse the
+hidden bootloader to bypass trusted code execution even during
+the system’s regular operation.
+Index Terms—fault injection, voltage glitching, SoC, root of
+trust
+I. INTRODUCTION
+Modern systems on a chip (SoCs) are used in various
+applications where chip security directly relates to human
+safety, such as self-driving cars and autonomous machines.
+To provide secure and authenticated operation of the system,
+SoCs contain a trust anchor in the form of a secured and
+tamper-proof bootloader. That bootloader’s task is to allow
+the execution of only authenticated firmware components,
+protect intellectual property (IP), set security configurations,
+and transfer control to less privileged boot stages. Typically,
+dedicated processor cores on the SoC act as the root of trust
+(RoT) and are responsible for these delicate tasks.
+In order to function as intended, integrated circuits (ICs)
+need to be operated under specified conditions, for instance,
+within the rated supply voltage, clock stability, temperature,
+and electromagnetic field ranges [1]. This dependency can be
+misused to force faulty behavior during the chip’s operation.
+Hence, the susceptibility of electronic circuits to coincidentally
+or deliberately injected faults has been studied for some
+decades. Especially in the smartcard field, fault injection (FI)
+attacks used to extract secrets from cryptographic algorithms
+§These authors contributed equally to this work.
+were investigated and counteracted around the year 2000 [1]–
+[3]. Next to the intended corruption of data values, faults can
+be used to skip security checks, enter protected code paths,
+or gain code execution [4], [5]. During the past years, attacks
+against microcontrollers and SoCs using laser-based [6] and
+electromagnetic [7], [8] FI have been presented. While these
+techniques offer high accuracy in targeting a specific part of
+the chip, they also require comparatively sophisticated setups.
+A simpler approach to inject faults into the system is voltage
+FI, where the supply voltage is over- or undervolted for a
+short moment [9]. The technique is also referred to as voltage
+glitching. Even tough the technique is simpler to execute, it is
+repeatedly used to attack modern targets, like the Nvidia Tegra
+X1 SoC [10]. By injecting faults into security registers, the
+bootloader’s code was extracted and used to find a firmware
+bug enabling unauthenticated code execution on the system.
+The fact that such simple attacks are still possible, 20 years
+after smartcards have been hardened against FI, suggests that
+chip manufacturers seem to have ignored this threat. Although
+protecting SoCs can be more difficult due to multiple power
+domains, complex power trees, and higher power consumption,
+manufacturers should implement protections against obvious
+and known attacks that can break the security of the system
+or even the entire device family.
+The subsequent generation of the above mentioned SoC,
+the Nvidia Tegra X2 (codename ”Parker”), is used in safety-
+critical applications, such as for the Nvidia autonomous
+driving units DRIVE PX Parker AutoChauffeur and Au-
+toCruise [11] used in Tesla cars [12], or the infotainment
+system in Mercedes [13] and Hyundai [14] cars. In our work,
+we address the following question: Is the Tegra X2 SoC
+susceptible to voltage FI as well, or was it a bad coincidence
+that the previous generation was vulnerable?
+Our contribution In this work, we indeed show that the
+processor acting as RoT on the Tegra X2 SoC is susceptible
+to voltage FI. We demonstrate how an attacker can gain code
+execution in the secure zone of the boot processor with only
+cheap and readily available equipment. This capability allows
+us to extract the content of the internal read-only memory
+(iROM), containing the first bootloader and key material used
+for decrypting the code of later boot stages. This endangers
+the IP of original equipment manufacturers (OEMs) and can
+defeat trusted code execution. To this end, we explain how a
+hardware implant can permanently manipulate the RoT. Since
+our attack cannot be easily prevented by firmware patches, we
+propose and discuss potential mitigations against voltage FI
+attacks for future chip generations
+
+
+VII. DISCUSSION
+A. Attack Applicability and Impact
+Our work has shown that the boot processor on the Nvidia
+Tegra X2 SoC is susceptible to voltage FI. We uncovered
+a hidden UART bootloader and forced its activation by FI.
+This bootloader allows us to execute code in the Secure/TZ
+mode. Consequently, we could extract the full BR code, as
+well as all fuses and registers holding cryptographic keys.
+Using the recovered key material, we were able to decrypt the
+second-stage bootloader (MB1). Together with the extracted
+fuse values, an attacker would now be able to decrypt OEM’s
+binaries of later boot stages. These capabilities form the
+perfect steppingstones to develop further attacks against a
+particular product.
+Next to these insights, the UART bootloader would enable
+an adversary to take control over the boot process and the
+entire system. They could load their own unauthenticated
+code or disable security settings and then mimic the original
+system’s behavior. Due to the short time of only a few
+seconds to a successful exploit, the FI can be conducted at
+each boot of the system without a significant increase in
+boot time. Moreover, in contrast to other more complicated
+FI techniques using lasers or EM radiation, this voltage FI
+capability can be persisted using a hardware implant. This has
+been demonstrated to be feasible, e.g., by Team Xecuter with
+their Nintendo Switch implant [45].
+Our attack has shown that simple things like a bootloader
+that should only be used by Nvidia and is not officially
+documented can be leveraged to break the system’s entire
+security. Devices and products of other manufacturers that are
+not hardened against voltage FI will likely have similar weak-
+nesses, which can be exploited easily with readily available
+equipment.
+B. Potential Mitigations
+To protect SoCs against voltage FI attacks, we distinguish
+between mitigations that can be applied to prevent attacks
+on existing architectures and mitigations directly implemented
+into future chip generations.
+1) Protecting Existing SoCs: After disclosing our findings
+to Nvidia, they proposed measures that can harden a device
+against voltage FI attacks. Since attackers need physical access
+for FI and similar attacks, OEM designers can increase the
+attack effort by adding board-level mitigations. For instance,
+heat- and solvent-resistant epoxy and non-removable metal
+shielding can prevent access to sensitive voltage rails and
+the removal of decoupling capacitors. Furthermore, embedding
+capacitive metal layers or decoupling capacitors into the PCB
+could reduce the effectiveness or accuracy of FI to a certain
+extent. Nevertheless, if the adversary only wants to exploit a
+single device, they might also consider developing a custom
+PCB for the SoC that facilitates access to the signal and omits
+decoupling capacitors.
+2) Protecting New SoC Versions: The threat of fault injec-
+tion for gaining adversarial code execution can be tackled from
+different directions. One could try to detect malicious voltage
+drops/glitches, and as a consequence, shut down the system to
+prevent further damage. Alternatively, one could try to prevent
+faulty execution in the presence of glitches, for instance,
+by introducing redundancy. These approaches imply changes
+in hardware or software design. Since neither approach can
+eradicate the chance of successful glitch injection completely,
+both approaches should be employed at the same time.
+Hardware-based Mitigations Voltage monitoring circuits –
+as commonly implemented in modern smartcards – could help
+to detect glitches. Nvidia has recently patented a cross-domain
+voltage glitch detection circuit, which can be implemented into
+an SoC [46]. The main idea is that an SoC contains multi-
+ple voltage rails. Therefore, circuits in independent voltage
+domains can monitor voltage levels in other domains, and
+if there is a glitch on a specific rail, assert an alert signal.
+Although we think this is a promising approach, it should
+be kept in mind that there might exist voltage glitch shapes
+that can cause faulty behavior but can not be detected by a
+particular protection circuit.
+Fully integrating the voltage regulators into the SoC could
+be another solution. However, faults can not only be induced
+by glitching the supply voltage. In the past couple of years,
+EM fault injection techniques against modern CPUs have been
+examined to inject faults in a targeted and contactless way [8],
+[47]. Consequently, a holistic view is necessary to prevent
+all kinds of fault injection attacks that can manipulate the
+behavior of the target device.
+Software-based Mitigations Hardening the BR might be
+another option to prevent the adversary from gaining code
+execution. However, this is a complex task since the char-
+acteristics and potentials of faults are not well understood.
+Particularly, there is no model which covers all possible faults.
+Nevertheless, Riscure and ARM propose countermeasures that
+can decrease the probability of successful attacks [48], [49].
+For instance, constants with large hamming distances can
+complicate flipping one valid value to another, and double-
+checks can protect branch conditions. Moreover, loop integrity
+checks make sure that the loop exits as intended, and a global
+counter can be used to monitor the program flow and detect
+anomalies. For assessing software countermeasures against
+fault attacks, different simulation-based frameworks have been
+proposed [50], [51].
+It should be noted that Nvidia is seemingly aware of
+these countermeasures. We saw most of these countermea-
+sures being used the leaked X1+ ”Mariko” BR source code.
+Unfortunately, they are not employed in the X2. The general
+approach of software-based mitigations might be promising as
+they can also protect against fault attacks other than voltage
+glitching.
+VIII. CONCLUSION
+Starting with the knowledge that the Nvidia Tegra X1 SoC
+is susceptible to voltage FI, we have investigated the boot
+security on its successor, the Tegra X2. We have shown that
+a hidden bootloader, which allows code execution with the
+highest privileges, can be enabled using voltage FI. Using
+this capability, we were able to extract the entire bootloader’s
+code and decryption keys for later boot stages. Furthermore,
+we described that an adversary could use the bootloader for
+injecting unauthentic code to bypass trusted code execution
+on the system. After disclosing our findings to Nvidia, they
+confirmed the vulnerability and stated that future device gen-
+erations contain mitigations against FI attacks. As devices of
+other manufacturers potentially are vulnerable in a similar
+manner, we have discussed countermeasures to mitigate our
+attack. Manufacturers and designers should not forget about
+seemingly simple hardware attacks that have been around for
+already more than two decades

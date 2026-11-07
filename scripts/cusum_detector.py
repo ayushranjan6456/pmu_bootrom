@@ -165,13 +165,19 @@ for H in H_values:
     det_count = 0
     fa_count  = 0
     for _ in range(N_ROC):
-        stream      = make_glitch_stream(X_nom, mu, SEV_ROC,
-                                         N_NOMINAL, N_GLITCH)
-        alarm, _, _ = run_cusum(stream, mu, cov_inv, H, K_SLACK)
-        if alarm >= N_NOMINAL:
+        # Test detection rate on attack sequences
+        stream_attack = make_glitch_stream(X_nom, mu, SEV_ROC,
+                                           N_NOMINAL, N_GLITCH)
+        alarm, _, _ = run_cusum(stream_attack, mu, cov_inv, H, K_SLACK)
+        if alarm != -1:  # Any alarm on attack sequence = detection
             det_count += 1
-        elif alarm != -1:
-            fa_count  += 1
+
+        # Test false alarm rate on pure nominal sequences
+        stream_nominal = make_glitch_stream(X_nom, mu, 0.0,
+                                            N_NOMINAL + N_GLITCH, 0)
+        alarm_nom, _, _ = run_cusum(stream_nominal, mu, cov_inv, H, K_SLACK)
+        if alarm_nom != -1:  # Any alarm on nominal sequence = false alarm
+            fa_count += 1
 
     roc_det.append(det_count / N_ROC)
     roc_fa.append(fa_count  / N_ROC)
@@ -184,7 +190,7 @@ sort_idx = np.argsort(roc_fa)
 roc_fa_s = roc_fa[sort_idx]
 roc_det_s = roc_det[sort_idx]
 auc = np.trapezoid(roc_det_s, roc_fa_s)
-print(f"AUC (severity={SEV_ROC:.0%}) = {abs(auc):.4f}")
+print(f"AUC (severity={SEV_ROC:.0%}) = {auc:.4f}")
 
 # ══════════════════════════════════════════════════════════════════════
 # 6. PLOTS
@@ -243,7 +249,7 @@ ax3.legend(fontsize=9); ax3.grid(True, alpha=0.3)
 # Plot 4: ROC curve
 ax4 = axes[1, 1]
 ax4.plot(roc_fa_s, roc_det_s, 'b-', lw=2.5,
-         label=f'CUSUM detector (AUC={abs(auc):.3f})')
+         label=f'CUSUM detector (AUC={auc:.3f})')
 ax4.plot([0, 1], [0, 1], 'k--', alpha=0.4, label='Random (AUC=0.5)')
 ax4.axvline(0.01, color='gray', ls=':', alpha=0.7, label='FA=1% operating point')
 ax4.set_title(f'ROC Curve — 20% Glitch Severity')

@@ -1,0 +1,1235 @@
+PAPER 8: Detection of Fault Data Injection Attack on UAV Using Adaptive 
+Neural Network
+
+Abstract 
+A resilient and secure control system should be designed to be as safe and robust as possible in face of different types of attacks 
+such as fault data injection (FDI) attacks; thus, nowadays, the control designers should also consider the probable attacks in their 
+control  design  from  the  beginning.  For  this  reason,  detection  of  intentional  faults  and  cyber-attacks  attracts  a  great  concern  
+among researchers. This issue plays a great role in the safety of unmanned aerial vehicles (UAVs) due to the need of continuous 
+supervision  and  control  of  these  systems.  In  order  to  have  a  cyber-attack  tolerant  (CAT)  controller,  the  attack  and  the  type  of 
+attack should be detected in the first step. This paper introduces a new algorithm to detect fault data injection attack in UAV. An 
+adaptive neural network is used to detect the injected faults in sensors of an UAV. An embedded Kalman filter (EKF) is used for 
+online tuning of neural networks weights; these online tuning makes the attack detection faster and more accurate. The simulation 
+results show that the proposed method can successfully detect FDI attacks applied to an UAV. 
+© 2016 The Authors. Published by Elsevier B.V. 
+Peer-review under responsibility of scientific committee of Missouri University of Science and Technology. 
+Keywords: Cyber-attack; UAV; Sensors; Attacks and Faults Detection; Fault Data Injection; Adaptive Neural Network 
+1. Introduction 
+In recent years, application of unmanned aerial vehicles (UAVs) increased significantly [1]. This growth will be continued by  technology  improvement  which will  lead  to cheaper  and  more  intelligent UAV’s  systems.  This  wide  
+spread application of UAV increases the safety and security concerns. Conventional autopilot designs are based on 
+the human supervision and do not consider the cyber security threats, which makes them vulnerable to cyber-attacks. 
+In 2009, a predator UAV stream hijacked which increased the attention to the UAV cyber-security considerably [1]. 
+Generally, cyber-attacks can be divided in to three main categories: hardware attacks, wireless attacks, and sensor 
+spoofing  [1].  In  hardware  attacks  the  attacker  has  access  to  the  autopilot  hardware  components;  while,  in  wireless  
+attacks, the attackers use wireless communication channels to penetrate the system. Several researches investigated 
+strategies  to  prevent  wireless  communication  attacks  [2-4].  In  these  works,  they  introduce  algorithms  to  detect  
+attacks  that  want  to  penetrate  and  extract  the  cypher  keys.  By  extracting  the  cypher  keys,  attackers  can  enter  their  
+false  data  within  the  same  structure  of  correct  data.  In  these  kinds  of  attacks,  attackers  introduce  errors  in  
+cryptographic algorithm in order to obtain the faulty cipher text so that they can decode the cipher key.  
+Sensor spoofing which is the main subject of this paper can be defined as passing false sensor information to the 
+UAV’s  on-board  autopilot.  In  these  kinds  of  attacks,  it  is  considered  that  the  attacker  has  already  entered  in  the  
+system, so in order to have a secure system, it should be tried to detect and isolate the injected faults from the real 
+data. Attackers can perform sensor spoofing with various kinds of procedures such as injecting faults to the sensor 
+feedback link, malfunctioning sensors, or overloading the on-board processor which can be led to denial of service 
+between the sensor and the controller. These kinds of attacks can be detected by the fault detection algorithms.  
+Various researches have been done to obtain robust controllers that can tolerate small fault and uncertainties [5-8]; 
+however, in order to have a robust controller their designs had to be very conservative that limit the maneuverability 
+of  the  control  system.  Therefore,  the  detection  algorithms  attract  researcher’s  attention  [9-16].    Several  algorithms  
+have been proposed for FDI attacks but only a few of them focused on detection of the FDI attacks on UAV [9-11]. 
+Among  these  methods,  neural  network  (NN)  received  most  of  attention  due  to  its  ability  in  online  learning  and  
+estimation  of  the  nonlinear  systems  [12-16].  A  fault  detection  design  which  is  based  on  a  bank  of  observer  with  
+learning  ability  using  diagnostic  residuals  for  discrete-time  nonlinear  systems  is  introduced  by  Wu  et  al.  [12].  In  
+their design in order to update the observer parameters, for each sample a type of Proportional-Derivative learning 
+algorithm was used. 
+An  NN  based  system  modeling  for  fault  detection  process  is  introduced  by  Samy  et  al.  [13].  In  this  design,  the  
+system  identification  was  obtained  through  off-line  learning  process,  so,  the  fault  detection  process  does  not  need  
+the model data during the operation. However, due to the fact that the model identification was performed off-line, 
+the  model  cannot  provide  needed  information  for  highly  nonlinear  system  with  uncertainties.  A  fault  detection  
+design based on NN is introduced for actuator faults in satellite by Talebi et al. [14]. However, this design was based 
+on the assumption that all the detailed behavior of the system is available. 
+Chen et al. introduced a neural fault tolerant control design which was designed for faults in the actuators of a three 
+degree  of  freedom  helicopter  [15].  In  their  design  neural  observer  was  designed  based  on  radial  basis  function.  
+However, this design cannot detect the faults in the helicopter sensors. Shen et al. presented a neural network fault 
+detection  technique  that  it  considers  the  time  delay  between  the  fault  detection  and  fault  accommodation  [16].  
+However, this technique assumes that fault occurrence time is larger than the system stabilization time (ts<tf) which 
+make this design vulnerable to sudden faults. 
+This paper introduces a novel detection system for FDI in sensors of the UAV. This design is based on a three layer 
+adaptive  NN  in  which  it’s  learning  coefficients  are  updated  by  EKF  that  can  be  applied  to  the  UAV  systems  to  
+detect and isolate the cyber-attacks in sensors. Conventional NN detection techniques suffer from the slow learning 
+rate that makes the system vulnerable to abrupt faults and attacks. Using EKF for updating the learning coefficients 
+helps  to  improve  the  detection  ability  of  neural  network,  increase  the  learning  rate,  and  gives  the  ability  to  detect  
+sudden  FDI.  The  proposed  algorithm  has  been  implemented  and  evaluated  on  a  six-degree-of-freedom  (DoF)  
+aircraft  model,  i.e.,  a  nonlinear  model  of  WVU  YF-22  unmanned  aircraft.  The  simulation  results  via  MATLAB  
+SIMULINK software show that the proposed method can detect FDI attack and the sensor faults successfully.  
+   The paper is organized as follows:  Section 2 provides the problem definition and explanation, while the proposed 
+detection strategy is illustrated in Section 3. Then in Section 4, simulation results are presented to demonstrate the 
+effectiveness of the introduced method. Finally, the conclusions and future work are provided in Section 5. 
+
+Problem Statement 
+The significant growth in wireless communication system brought convenience in aircraft design and management, 
+but  at  the  same  time  brought  the  security  concerns  for  designers  [17-22].  These  wireless  communications  can  be  
+used  as  a  potential  gate  for  cyber  attackers  to  enter  and  take  the  control  of  the  system  or  interrupt  it.    Due  to  the  
+nature  of  UAV’s  systems,  they  use  more  wireless  communication  system  which  makes  them  better  target  for  
+attackers.  Moreover,  lack  of human  supervision  makes  them  more  vulnerable  to  the  cyber-attacks. In  recent  years,  
+the  security  and  stability  of  UAVs  have  been  at  the  centre  stage  for  researchers,  engineers,  and  governmental  
+entities, since exploited security risks could have potential catastrophic consequences [1]. Although the security and 
+stability schemes for UAVs have advanced in the past several years, there have been several acknowledged cyber-
+attacks  and  confirmations  that  these  systems  are  not  very  safe  and  stable  in  the  face  of  attacks  and  natural  
+disturbances. 
+This  paper  deals  with  FDI  attacks  in  the  aircraft  sensor  systems.  This  class  of  attack  injects  faults  into  a  device  
+performing  some  type  of  computation.  These  faults  can  be  anything  from  unusual  environmental  conditions  
+(increased heat, for example), the injection of a laser beam at the appropriate frequency [23], or the injection of data 
+packets that collide with legitimate packets [24].   
+An illustration of an FDI attack on a UAV is shown in Fig.1. This figure shows the gates that attacker can use for 
+penetration in the system; like inertial measurement units (IMU), GPS satellites, and communication protocols (CP). 
+In  this  paper  we  focused  on  the  IMU  sensors.  IMU  is  an  integrated  circuit  contains  accelerometers  and  gyroscope  
+which  gives  the  information  related  to  linear  and  angular  motion  of  the  aircraft.  This  information  is  used  as  a  
+feedback for the control system to modify the aircraft attitude based on the desired manoeuvre.
+
+. Conclusion and future works 
+In this work the possible cyber-attacks to the aircraft attitude sensors have been investigated. A new approach based 
+on  neural  network  observer  is  introduced  which  is  capable  of  online  detection  of  possible  attacks  on  the  UAV  
+sensors  in  the IMU.  The proposed  design uses  EKF  to  tune  the NN weights  which  increases  the  learning  speed of  
+the NN, and subsequently, improves the ability of the detection of the sudden attacks. The simulation results show 
+that the developed method can successfully and accurately detect the sudden and smooth attacks in the sensors. This 
+detection can be further used to help the system to correct itself and to be robust against cyber-attacks
+
+
+PAPER 9: Experimental evaluation of RISC-V micro-architecture against fault injection
+attack
+
+A B S T R A C T
+Today, the use of embedded processors is increasing dramatically and they are used in all aspects from
+our daily life to security applications. Physical access to hardware has made the hardware security a major
+concern. Hardware attacks compromise the hardware security by physically accessing target devices. Among
+the available techniques for hardware attacks, Fault Injection Attacks (FIAs), such as clock glitching, are one
+of the most harmful types of non-invasive attacks that can disrupt the operation of an embedded system.
+Thus, it will be important and fundamental to evaluate embedded software programs before using them in
+critical applications and check their vulnerability against fault injection attacks. However, it is often difficult for
+software developers to assess vulnerabilities. In this paper, an easy-to-use platform is presented to facilitate the
+process of evaluating the vulnerability of programs running on embedded processors against clock glitching
+attacks. Our experimental results show the vulnerability window of RISC-V micro-architecture for different
+high-level C-functions. The results of this research can help the developers of embedded systems that are used
+in security applications to evaluate their system against clock glitching attacks with the least cost in a short
+time.
+1. Introduction
+Nowadays, the use of electronic devices in our daily life is growing
+fast. These systems can occasionally be employed in security applica-
+tions, such as authentication applications [1]. Despite all the merits
+and various applications of embedded systems, their security risks have
+always been a concern. The security vulnerabilities of these systems
+can lead to mistakes in the intended operation or disrupt their com-
+munication with the central monitoring system. In some cases, the
+attacks will obtain important information from the consumer, such as
+financial and banking information [2]. An example that has received
+much attention in recent years is the vulnerabilities that lead to failure
+in the functioning of embedded systems in the field of medicine and
+endanger the lives of patients [3].
+There are various attacks against embedded systems. Among secu-
+rity attacks, hardware attacks have received a great attention recently.
+In recent years, it has been shown that this type of attack can be
+a serious threat to hidden systems that have physical access for the
+attacker [4].
+Hardware attacks are carried out when the attacker has physical
+access to the embedded system. In this case, the attacker can obtain
+∗ Corresponding author.
+E-mail address: beitollahi@iust.ac.ir (H. Beitollahi).
+useful information by measuring things such as power consumption,
+function execution time, and even electromagnetic radiation. A sub-
+set of these attacks that are performed by monitoring different side
+channels is known as passive attacks. On the other hand, there are
+active hardware attacks that are carried out by manipulating inputs
+such as power and clock or changing environmental conditions such
+as increasing temperature; which are known as fault injection attacks.
+In these active attacks, the attacker generally tries to inject faults and
+change the correct functioning of the system. A successful attack can
+have different goals depending on the type of attack, so in attacks based
+on side-channel analysis, a successful attack is to obtain important
+information, but in attacks based on fault injection, a successful attack
+is to disrupt the correct process of the system.
+With the emergence of hardware attacks, great challenges have been
+created for embedded systems, which allow the attacker to break all
+kinds of protections and encryptions done at the software level [5].
+Therefore, this type of attacks can have residual risks for embedded
+systems that are sometimes used in critical safety applications. One
+of the primary measures to prevent these attacks is to evaluate them
+against various types of hardware attacks before entering the market,
+but in some business approaches, short time to market takes priority
+over security assessments, and in most cases, vulnerabilities based on
+the hardware is not fully examined when entering the market [4].
+Therefore, an embedded system may be vulnerable to this type of attack
+even after entering the market. Hence, before using these systems, it
+is essential that the developers of embedded systems evaluate them
+against hardware attacks.
+The evaluation of vulnerabilities based on hardware attack can be
+done using different methods, which can be divided into 3 general
+categories: (A) Techniques based on mathematical analysis, (B) using
+simulation tools, and (C) experimental analysis techniques. The first
+two groups use mathematical techniques and simulation software to
+assess the vulnerability of a system against hardware attacks that have
+wide capabilities at low cost. But these approaches are only suitable for
+initial evaluation, because in the field of hardware-based attacks, vari-
+ous environmental parameters such as process variation, temperature,
+etc., play a role, which are not considered in these two techniques. As
+a result, any arbitrary attack cannot be described and evaluated in the
+environment of simulation or mathematical analysis [6,7].
+The third group uses experimental analysis methods to evaluate
+hardware security and investigate possible risks in a real environ-
+ment [8]. The main challenge of this method is the need for a fault
+generation and evaluation platform, which will be difficult for users
+who do not have expertise in security and hardware evaluation. Until
+now, various fault injection techniques have been proposed; among
+these methods, attacks based on fault injection on the clock have
+attracted the attention of many attackers due to their low cost and no
+need for expensive equipment. Therefore, this type of attack can be a
+serious risk for users of embedded systems. On the other hand, it will
+be difficult and time-consuming to assess the vulnerability of embedded
+systems against fault injection attacks that are based on clock signals.
+In this Paper, by providing a vulnerability assessment platform
+for embedded software against fault injection attacks that are carried
+out on the clock signal, we will try to give this possibility to their
+users in a short time, and with moderate expertise, they can find the
+vulnerabilities of their own embedded software programs. Our main
+aim is to practically investigate vulnerabilities related to embedded
+software programs running on a processor based on RISC-V micro
+architecture. To this end, our contributions in this work are as follows:
+•An overview of hardware attacks, especially attacks based on
+clock signal manipulation: At the first step, we provide a general
+overview of the basic concepts of hardware attacks and their
+types. More details about clock-based attacks, which are in line
+with the main topic of this work, are provided. The reason for this
+focus is the reasonable cost and availability of facilities needed for
+our experiments.
+•Overview of fault generators on the clock signal: In order to per-
+form clock-based attacks in practice, it is necessary to implement
+a fault generator. For this purpose, all the proposed methods for
+fault generators in the clock signal are reviewed and compared
+in the second part. Collecting the previous works will help us to
+implement the suitable fault generator hardware circuit.
+•Providing a fault generation platform: improving the pre-introd-
+uced fault generators and providing a fault injection platform that
+is able to generate different types of faults and then inject them
+on the clock signal.
+•Implementation of a platform to collect details of successful at-
+tacks: The proposed fault generation platform generates and in-
+jects all of the different types of faults. Therefore, we will try
+to save all the information of the experimental tests by provid-
+ing and implementing a unit’s hardware in order to collect the
+characteristics of successful attacks.
+•Analysis of the results and suggestions for its improvement: By an-
+alyzing and examining successful attacks and their characteristics,
+we try to find the vulnerability window of embedded software
+programs.
+The rest of the paper is organized as follows: Section 2 reviews the
+basic concepts and previous state of the art techniques. In Section 3, we
+will first present our fault injection platform, then we will implement
+the RISC-V based processor and finally we will explain the informa-
+tion collection platform. Section 4 analyzes and reviews the obtained
+results, and finally, the conclusion and future work are presented in
+Section 5.
+
+4. Resultsanddiscussion
+In this section, in order to observe the effectiveness of the proposed
+fault injection platform and evaluate the vulnerability of the RISC-
+V microarchitecture, we perform fault injection attacks on commonly
+used hight level C functions. It is worth to note that previous related
+state-of-the-art techniques [2,30] also have used high-level C functions
+in their analysis. The selected C functions are shown in Table 1. In
+this table, the correct and incorrect behaviors of the C functions in the
+presence of faults are shown.
+The proposed platform produces 14878 different faults and injects
+on the RISC-V processor. Therefore, we evaluate each of the C functions
+against all 14878 generated faults.
+The scatter percentage of width and offset of successful attacks in a
+clock cycle on the functions is shown in Fig. 8. Let us discuss the results
+for each function, separately
+he Memcmp function: The maximum density of attacks on this
+function occurs when (1) the offset is between 20 and 40 percent
+of a periodic clock signal and (2) the width is always somewhere
+between 20 and 50 percent of the length of a period. It can therefore be
+concluded that if we divide a clock period into 4 quadrants, the density
+of successful attacks is in the second quadrant.
+TheMemestfunction: The density of successful attacks occur with
+offset of 15 to 45 percent of the clock signal period. It can also be
+concluded that attacks that occur at the positive level of the clock signal
+with the same width and offset characteristics can be highly successful.
+Microprocessors and Microsystems 104 (2024) 104991
+As can be seen in the figure, the more we move from the left side of
+the chart to the right, the width of the successful attacks decreases,
+meaning that successful attacks that occur at the zero level of the clock
+signal have a small width, i.e. at the zero level, thinner faults are more
+likely to succeed.
+The Strchr function: The highest density of successful attacks is
+related to those that have offsets between 20 and 40 percent of the
+clock period, i.e. if we divide the clock signal into four quadrants,
+faults that occur in the second quadrant of the clock signal with widths
+less than 5 percent or widths between 20 and 50 percent of a clock
+signal period can be used to assess the vulnerability of this function.
+Moreover, as the offset increases, the width of the faults decreases.
+The Itoa function: As the percentage of the offset increases, the
+width of successful attacks decreases, which means that attacks at level
+one of the clock signals have a greater width than if the fault occurs at
+level zero. Also, as can be seen in the figure, the density of successful
+attacks is highest between 34 and 40 degree offsets.
+The Atoi function: As can be seen in the figure, the density of
+successful attacks is generally high in two regions. First, faults that
+account for offsets of between 20 and 30 percent of an one clock cycle.
+The second are faults whose offsets are between 55 and 75 percent
+of the clock cycle. In the first group, the width of the faults has no
+continuous values, but in the second group the width of faults should
+be less than 25% of a clock cycle, or in other words, their width should
+be less than 8 ns.
+In general, it can be concluded from the results shown in Fig. 8
+that as we move from the right side of the diagram to the left side, the
+width of the successful glitches decreases, in other words, the successful
+attacks that occur at the zero level of the clock signal have a smaller
+width. and it can be said, to have a successful attacks at the positive
+level of the clock signal, the glitches must be wider and at the negative
+level, thin glitches will probably have more success.
+Fig. 9 shows the width and offset characteristics of the vulnerability
+intervals of all C functions against fault injection attacks. Below the
+interpretation of this figure for each function is discussed.
+The Memcmp function: If you divide a clock cycle into 360 de-
+grees, the first 180 degrees represents a positive level and the second
+180 degrees represents the negative level of the clock signal. The
+successful attacks that occur at 180 s degree (zero level) have a fault
+width of less than 8 ns. Successful attacks are less thick at the negative
+level. On the other hand, bugs that occur in 90 s degree of the clock
+signal with a width of more than 8 ns have high probability of success.
+Microprocessors and Microsystems 104 (2024) 104991
+TheMemestfunction: As can be seen in the figure, the successful
+attacks that occur at 180 s degree (zero level) have a fault width of
+less than 8 ns. In other words, successful attacks are less thick at the
+negative level. On the other hand, attacks that occur in 90 s degree of
+clock signal with a width of more than 8 ns have high probability of
+success.
+TheStrchr function: Faults that occur at second 90 degree of the
+clock signal, independent of the value of width, can create a high
+probability of a successful attack. Moreover, among the faults that
+occur at 180 s degree or zero level of clock signal, those that occur
+at 90 degrees of clock signal with widths less than 8 ns have a very
+high probability of success.
+The Itoa function: Successful attacks are scattered in the second
+and third 90 degree. Generally, if we divide the clock signal into four
+parts, the number of successful attacks that occurred in the first and the
+last two segments would go to zero. In the second 90 degrees, the width
+of the faults has a high dispersion; for example, a fault with an offset
+of 130 degrees can create successful attacks with a width between 0.02
+and 15.465 ns with a very high probability.
+The Atoi function: Attacks with faults that have an offset of be-
+tween 90 and 150 degrees will have a high chance of success. In
+general, the parameters of this function and itoa are very similar.
+4.1. Discussion
+Fig. 10 shows the scattering of successful attacks in different clock
+cycles for all functions. As can be seen in the figure, for the Memcmp
+function, the majority of successful attacks have been in the 5th to 8th
+cycles out of 40 cycles (The Memcmp function needs 40 clock cycles for
+the execution). Based on the experiments performed on the Memcmp
+function, it can be concluded that to evaluate this function must first
+create a fault in the second half of the positive level of the clock period
+and then inject it on cycles 5, 6, 7 and 8 of this instruction. Our
+proposed platform has the possibility of injecting faults on the desired
+clock cycle, but if this is possible in the fault generator, nop commands
+can be used before this function to inject faults on the desired cycles.
+As can be seen in Fig. 10, the Memset function requires 50 clock
+cycles to run. For this reason, by selecting a fault with fixed character-
+istics, we inject it into all clock cycles. We can observe that successful
+attacks occurred between cycles 5 and 12. According to the attacks on
+the Memset function and the results of experimental experiments, it
+can be concluded that in order to evaluate the vulnerabilities of this
+function against the injection attacks, the faults with the same width
+and offset value of which are between 25 and 40% of the clock signal
+are produced and then are injected on cycles 5 to 12.
+The Strchr function requires 60 clock cycles to run, hence we inject
+a fixed fault in every 60 cycles of it. The successful attacks disperse
+between the 6th and 12th cycles of this function. Therefore, it can
+be concluded that to have a successful attack in order to evaluate the
+vulnerabilities of the Strchr function against fault injection attacks, it
+is possible to generate faults with offset between 20% and 50% of the
+clock signal, independent of the width of the faults, and inject them in
+cycles 6th to 12th of this function.
+The Itoa function requires 120 clock cycles. As can be seen, the
+successful attacks occur at cycles of 5 to 20. In general, it can be
+concluded that in order to evaluate the Itoa function against fault
+injection attacks, faults in the second and third degree of the clock
+signal must be injected to make successful attacks. The faults that occur
+in the second 90 degrees have little dependence on the width of the
+faults, but the faults that occur in the third 90 degrees have a greater
+dependence on the width of the faults. Therefore, it can be concluded
+that by generating a fault in second 90 degrees of the clock signal and
+injecting it in the 5th to 20th cycles of the clock signal, high precision
+parameters can be used for successful attacks.
+The Atoi function, similar to the Itoa function, requires 120 clock
+cycles, so to evaluate the probability of success attacks among these
+cycles, we evaluated our fault injection attacks for each cycle. As can
+be seen in Fig. 10, this function has more vulnerabilities in cycles 5 to
+15.
+In this section, our goal was to evaluate the commonly used high
+level C functions against fault injection attacks. We evaluated each of
+the functions against 14878 different types of glitches and after finding
+the characteristics of successful attacks that could change the output of
+the functions, we tried to show with what characteristics, successful
+attacks can be injected. We have shown a successful attack for each
+function requires what offset and width for each fault.
+These results can give users and developers of embedded software
+tools the opportunity to evaluate their system against fault injection
+attacks, with the difference that there is no need to inject around 15000
+different faults and they can evaluate system by injecting only a small
+number of faults.
+5. Conclusionandfutureworks
+One of the main threats to embedded processors is fault injection
+attacks, with various techniques to perform. Fault injection attacks
+need various knowledge and costs and they can be done on various
+parts of the processor. The clock signal is an attractive part of the
+processor that attackers interest to inject faults on it. This paper shows
+that injecting faults on clock signals of the embedded processors has
+destructive effects on the embedded software tools running on the
+processors. Hence, developers and owners of the embedded systems
+must consider these effects before deploy them.
+This paper developed a hardware platform to inject faults on the
+clock signal of the RISC-V processor (a famous embedded processor).
+The platform includes three units: The glitcher unit, the target unit and
+the controller unit. Our work distinguishes itself from previous efforts,
+particularly in the ability to generate more glitches, exemplified by
+the capability to inject glitches at the zero level of the clock. Another
+notable advantage of our platform is the inclusion of a control unit. This
+unit enhances the previous platform in two significant ways. Firstly, it
+automatically collects and saves results in a CSV file, facilitating the
+use of neural networks for analysis. Secondly, the unit resets the target
+after each fault injection, a feature not considered in the previous work.
+The platform is used to inject various faults on the clock signal of
+the processor, while frequently used high-level C functions are run on
+the processor. Hence, the fault injection attack shows its effects on the
+C functions. The paper shows that C functions are vulnerable at which
+intervals and with which characteristics. These results can give users
+the possibility to evaluate their system without injecting all possible
+faults and only by injecting a small number of faults on the clock signal
+with the specified characteristics.
+As a future work, we like to investigate the effect of the fault
+propagation from the physical layer to the higher layers by relying on
+the hardware specifications of the processor. For this purpose, simu-
+lators that are very accurate in executing commands can be helpful.
+Our second future work is to use artificial intelligence techniques
+(e.g., machine learning) to have an automatic vulnerability assessor.
+Using artificial intelligence, a large number of results can be examined
+and a more comprehensive report can be presented by collecting the
+most frequent and important vulnerabilities
+
+
+
+PAPER 10:
+Fill your Boots: Enhanced Embedded Bootloader
+Exploits via Fault Injection and Binary Analysis
+
+Abstract. The bootloader of an embedded microcontroller is responsible for guarding
+the device’s internal (flash) memory, enforcing read/write protection mechanisms.
+Fault injection techniques such as voltage or clock glitching have been proven successful
+in bypassing such protection for specific microcontrollers, but this often requires
+expensive equipment and/or exhaustive search of the fault parameters. When multiple
+glitches are required (e.g., when countermeasures are in place) this search becomes of
+exponential complexity and thus infeasible. Another challenge which makes embedded
+bootloaders notoriously hard to analyse is their lack of debugging capabilities.
+This paper proposes a grey-box approach that leverages binary analysis and advanced
+software exploitation techniques combined with voltage glitching to develop a powerful
+attack methodology against embedded bootloaders. We showcase our techniques with
+three real-world microcontrollers as case studies: 1) we combine static and on-chip
+dynamic analysis to enable a Return-Oriented Programming exploit on the bootloader
+of the NXP LPC microcontrollers; 2) we leverage on-chip dynamic analysis on the
+bootloader of the popular STM8 microcontrollers to constrain the glitch parameter
+search, achieving the first fully-documented multi-glitch attack on a real-world target;
+3) we apply symbolic execution to precisely aim voltage glitches at target instructions
+based on the execution path in the bootloader of the Renesas 78K0 automotive
+microcontroller. For each case study, we show that using inexpensive, open-design
+equipment, we are able to efficiently breach the security of these microcontrollers and
+get full control of the protected memory, even when multiple glitches are required.
+Finally, we identify and elaborate on several vulnerable design patterns that should
+be avoided when implementing embedded bootloaders.
+Keywords: Embedded bootloader, fault-injection attacks, Return-Oriented Program-
+ming, binary analysis
+1 Introduction
+Embedded microcontrollers are at the foundation of our ever-increasingly digital world,
+steering innovation through data they collect and process. However, with their many
+advantages and uses come new security concerns. A single vulnerability in an embedded
+Microcontroller (μC) can lead to the compromise of all embedded systems using that
+particular type of chip.
+An embedded bootloader is available on nearly all μCs and typically has full access to
+the chip’s flash/RAM memories and its peripherals before loading the user application.
+Therefore, chip manufacturers integrate a security mechanism, which we call Code Readout
+Protection (CRP) in this paper, in the bootloader to safeguard the integrity and secrecy
+of the firmware binary (and all cryptographic secrets and intellectual property within it).
+
+Because a variety of devices, ranging from automotive Electronic Control Units (ECUs) to
+Internet of Things (IoT), often use the same or similar μCs, they also include the same,
+generic bootloader—with no control over its development and no insight into its source
+code. Hence, the users of μCs find themselves at the mercy of the quality of the chip
+manufacturer’s internal security testing, if any such procedures are in place at all.
+Thus, however strong security primitives a specific system is built on, a vulnerable
+bootloader undoes all of this and makes the device susceptible to various attacks ranging
+from firmware readout to a full device compromise. Hence, bootloader security is of utmost
+importance for the integrity of the device and the secrecy of the firmware and the data
+within it. In notoriously secretive sectors such as the automotive industry, being able to
+extract firmware from ECUs allows for public scrutiny of the underlying security primitives,
+which are often of proprietary nature and insecure [dHG18, MV15, MV13, WVdHG+20,
+GOKP16]. The bootloader is the first piece of software that executes after reset and
+enforces the chip’s CRP. Typically, it initialises essential peripherals (e.g., the internal
+clock) and loads and executes the application firmware. However, most bootloaders provide
+an external interface through a serial protocol, which typically uses an internal buffer to
+write and receive messages, making them prone to well-studied software vulnerabilities such
+as buffer overflows. These are aggravated by the lack of common mitigation techniques
+on embedded chips and especially in the bootloader, which often resides in a restricted
+memory area such as on-chip ROM and cannot be updated.
+Hardware-based fault attacks induce a fault in on-chip computations, such as skipping
+an instruction, by changing the physical operating environment of the chip, e.g., the supply
+voltage. They do not rely on the presence of a software vulnerability. The literature covers a
+wide spectrum of hardware-based fault injection methods: the most widely-used techniques
+include voltage, optical, clock and electromagnetic fault injection. Optical fault attacks
+require extensive preparation such as decapsulating the chip [SA02], while electromagnetic
+fault attacks involve specialised hardware [CH17] and have a larger parameter space (e.g.,
+probe positions). On the other hand, voltage fault injection (“glitching”) does not require
+expensive lab equipment: open-source projects such as the Chipwhisperer [OC14] and
+the Generic Implementation ANalysis Toolkit (GIAnT) [Osw16] significantly lower the
+entry barrier for voltage glitching. A large amount of research has focused on devising
+algorithm-specific techniques to recover keys when faults are injected into cryptographic
+computations (cf. for instance [TMA11, BDL97, BS97, BBKN12, JT12]). Such research
+usually assumes a specific fault model (e.g., a bit-flip in a certain part of a cipher’s
+internal state), and ignores the details of how the faults actually influence the binary
+code implementing the cryptographic algorithm. However, fault injection such as voltage
+glitching can often accurately target one particular instruction or memory location, and
+change the behaviour of normally secure code [MOG+20]. This makes bootloaders especially
+susceptible to said attacks: if for example the comparison instruction that checks if CRP
+is enabled can be manipulated, a single fault is sufficient to disable it. This in turn also
+compromises all cryptographic secrets stored on the μC, without the need for key recovery
+techniques specific to the implemented cipher. Still, finding the correct fault injection
+parameters to “hit” a particular location (e.g., in the bootloader binary) is challenging in
+a real-world attack scenario: most published attacks treat the μC and its firmware as a
+black box, and thus have to resort to an (optimised) brute force search of the parameter
+space [BFP19, CPB+13, PBJC14]. However, binary analysis of the bootloader binary could
+significantly reduce the search space. On the one hand, static analysis, which statically
+reconstructs the program control flow, reveals the possible bootloader execution paths to
+the CRP check. On the other hand, dynamic analysis, which leverages the bootloader
+execution, proves crucial in developing and testing CRP bypass exploits.
+In this work, we draw on the target bootloader binaries to gain insight into the boot-
+loader operation, and the enforcement of the CRP mechanism in particular. Furthermore,
+
+we propose several novel methods that bridge the gap between binary analysis and fault
+injection. We show that our approach enables complex attacks that would be infeasible
+without analysis of the bootloader binary.
+
+6 Lessons Learned for Secure Bootloader Design
+Bootloader vulnerabilities as presented in this paper are not easily mitigated. Both chip
+manufacturers and their clients benefit from having the possibility to alter the flash memory
+content of the chip in case of malfunction or a firmware upgrade. The bootloader is the ideal
+candidate to incorporate this functionality. However, this requires a significantly larger
+codebase, potentially leading to software vulnerabilities such as described in Sections 1.3
+and 3. Even though hardware fault injection attacks are hard to prevent, manufacturers can
+mitigate this risk by including extra components such as sensitive brownout detection [Gil]
+or a randomised internal clock [KK99] in the chip design. However, these mitigations
+undermine the overall performance of the chip and increase its costs, making a software-
+based approach—which would only affect the bootloader performance—attractive. Thus,
+in order to provide adequate reprogramming functionality without unnecessarily increasing
+the attack surface, we give several anti-patterns aimed at supporting the development of
+(more) secure bootloaders. These are design patterns we have observed both in our work
+as in previous research which weaken the protection mechanisms and thus must be avoided
+in an embedded bootloader.
+A1 - Partial RAM write access in protected state: As shown in Section 3, μCs which
+have multiple protection levels often permit limited debug access to the chip’s memory.
+Chips without an MMU must ensure that all bootloader memory and the area accessible
+to the user are separate. If no exploit mitigations are in place, a single compromise of the
+stack can jeopardise the whole system.
+A2 - Partial leakage of memory or registers: Certain μCs still provide read access to
+RAM and/or registers when CRP is enabled. To exploit this issue, Obermaier et al.
+introduced cold boot stepping, which reconstructs the control flow of a program based
+on SRAM snapshots [OT17]. Furthermore, by single stepping a load instruction and
+manipulating CPU registers, Brosch recovers the firmware of a Bluetooth μC [Bro].
+A3 - Partial flash overwrite: Having write access to one sector essentially gives an attacker
+read access to the chip. In addition to the attack described in Section 3.3, many systems
+have been broken by overwriting a flash sector with a program that reads out the entire
+memory of the chip [Mer10, GdKGVM12, WVdHG+20].
+A4 - Incomplete or non-atomic chip erase: On many μCs, the CRP can be disabled
+through a full chip erase. However, as shown in [Lau, Goo09], in some cases that chip
+erase does not clear the full internal state (e.g., leaves RAM or data flash contents intact)
+and hence allows to recover information such as cryptographic keys stored in unerased
+memory. Furthermore, the erase process should be uninterruptible and atomic, that is to
+say that the bootloader should only disable the CRP at the very end of the erase process.
+A5 - Non-constant time code: Timing leakage on password-protected bootloaders such as
+the Renesas M16C or TI MSP430 allows an attacker to recover the password byte-by-byte
+and gain access to the full flash memory [Goo08, q3k17].
+A6 - Default to unprotected: A comparison is easier to glitch if only specific value(s)
+enable the readout protection. For example, the LPC1343 bootloader starts with disabled
+protection unless a few specific values are read. Therefore, a much bigger range of glitches
+can cause this desired effect, e.g., if a load is forced to all zero or all one.
+A7 - Non-redundant check for readout protection: On μCs without hardware counter-
+measures against fault injection, it is typically possible to bypass a single check with high
+success rate, e.g., through voltage glitching. However, as evident from Section 4, the
+success rate decreases exponentially with each redundant check.
+A8 - Large number of protection levels: This can confuse developers as to exactly what
+kind of protection each level relates to. It is not uncommon for developers to use a
+manufacturer-provided IDE, which in turn could hide the CRP details to the user and
+thus obscure which level is actually selected.
+A9 - Separate On-Chip Debug (OCD) and CRP mechanisms: On many μCs such as the
+Renesas V850, 78K0R and 78K0, or the TI MSP430, the readout protection mechanism is
+unrelated to the OCD access, which the user needs to either secure in software [Renb] or
+by blowing a fuse [Tex]. Due to this ambiguous setup, programmers can lose track of some
+ways to access the on-chip memory, ultimately undoing all other protection measures.
+A10 - Complex bootloader logic: Every feature of the bootloader’s communication pro-
+tocol broadens the attack surface and thus entails more software exploitation risks. For
+instance, the USB storage emulation of certain LPC μCs, which contains a FAT filesystem
+implementation [NXPb], could contain more issues, whereas the STM8 does not allow
+access to any bootloader commands if CRP is enabled. Besides, some Renesas μCs support
+up to three (UART, single-wire UART and SPI) communication interfaces in the same
+bootloader, which increases attack surface.
+In addition to the above anti-patterns, there are other possible approaches and tradeoffs
+to be taken into account for secure bootloader design. They include:
+Bootloader read protection Some devices incorporate read protection of the bootloader
+memory space, preventing readout of the bootloader binary. For instance, recent chips may
+incorporate eXecute-Only-Memory (XOM), which utilises additional hardware to restrict
+a certain memory area (e.g., the bootloader section) to instruction fetches and disallows
+any read or write access. This would mitigate the attacks described in this paper, because
+access to the bootloader binary is a prerequisite for each. However, Schink et al. analyse
+several XOM implementations in [SO19] and bypass the restrictions in each case to recover
+the protected code.
+In-field & field-return analysis In certain scenarios, e.g., to perform dynamic in-field
+testing or to determine the cause of device failure, the manufacturer requires privileged
+access to the chip. This directly contradicts the proposed mitigations and anti-patterns,
+which are intended to lock down the chip as much as possible. Specifically, the manufacturer
+must balance anti-patterns A1 and A4 with leaving sufficient debug capabilities on the
+chip for these scenarios. An appropriate solution, though going against A9, would be to
+have a separate debug mechanism which only the manufacturer can access and is protected
+when the device goes into production.
+7 Conclusion
+Voltage fault injection is a powerful technique that has been widely studied in the context of
+cryptographic primitives, but comparatively little research has been done in the context of
+traditional software security. This paper has brought advancements in binary analysis such
+as symbolic execution and dynamic analysis into the low-level hardware security domain.
+Furthermore, we also show that exploitation techniques like ROP apply in the context
+of embedded bootloaders. We demonstrated that symbolic execution can be leveraged
+to define argument equivalence classes based on their respective execution paths. This
+gives us valuable insights into their execution times, which allows us to produce precisely-
+targeted glitch offsets to aid the glitch parameter search as we demonstrated on the 78K0
+bootloader. By flashing parts of the bootloader as application code and thus enabling
+dynamic glitch profiling on the target hardware itself, we have presented here the first fully
+documented multi-glitch attack against the widely used STM8 family of microcontrollers,
+which gives full access to the device’s memory. The techniques presented in this paper
+are applicable to other families of microcontrollers and can be fully implemented using
+inexpensive open-designed hardware.
+
+
+
+PAPER 11: 
+FTC: A Universal Sensor for Fault Injection Attack Detection
+Abstract—Over the past two decades, fault-injection methodshave evolved into very effective attacks to cause integrity or con-fidentiality violations in integrated circuits or electronic systems.Fault-injection attacks (FIAs) can be carried out using clock-
+glitch, voltage glitch, laser, optical instruments, electromagnetic(EM) emanation, and more. One promising solution to detectFIAs is to use on-chip sensors to capture the attacks’ effect.
+However, having different types and techniques of FIAs enforces
+using the custom-designed sensors for each type of attack, which
+is challenging and introduces a large overhead. To address this,in this paper, we propose to develop a universal Fault-to-TimeConverter (FTC) sensor that can effectively detect all the above-
+mentioned FIAs while requiring minimal overhead. The FTCsensor converts the effect of faults injected by an FIA methodinto ”time” that is measurable. Then, the ”time” difference canbe analyzed further to identify whether an attack has beencarried out successfully. Our FTC sensor implementation in
+FPGA platforms demonstrates that the design can effectivelydifferentiate various FIA attack scenarios with its encodedoutput. The FTC sensor can also be extended to cover otherfault attacks that have a similar impact on the victim device
+(i.e., affecting circuit timing).
+FTC - Fault to Time Converter
+
+NTRODUCTION
+The Internet of Things (IoT) era inspires numerous promis-ing applications such as smart appliances, self-driven cars, andthe industrial internet. These applications are also integrated
+into security-critical systems, i.e., military, space equipment,
+health, and finance. However, the underlying embedded de-
+vices, e.g., microprocessors and field-programmable gate ar-
+rays (FPGAs), are susceptible to hardware attacks [1]. There-
+fore, their security and trust can be compromised. Over the
+past two decades, fault injection attacks (FIAs) have emerged
+as one of the most dangerous active physical attacks. FIAs aim
+at tampering with the normal operations of the target device
+by compromising the data integrity [2], causing a denial of
+service, or accessing privileged information [3]. As shown in
+Figure 1, FIAs requiring physical access to chips could be
+carried out in a variety of ways including voltage glitching
+[1], clock glitching [3], electromagnetic (EM) injection [4],
+optical [5] and laser [6] faults. The voltage glitching and EM
+injection affect the power line creating delay variations in the
+system. On the other hand, clock glitching disrupts the original
+clock signal and corrupts the data by setup/hold violations.
+Besides, optical/laser fault injection impacts systems at the
+transistor level, inducing voltage and delay variations. Given
+the stealthy and transient nature of these FIAs, it is difficult
+to detect them in real-time. However, it is imperative to detect
+these FIAs as soon as they are applied to ensure the system’s
+security. Our proposed work is directed towards the protection
+measures to address these attacks
+
+Multiple detection tech have been proposed to addrress a specific FIA. [7][8] propose detection techniqies based on sense amplifier and RC circuit for voltage glitching. In [9], [10], clock monitors and frequency detectors
+have been proposed to counter clock glitching. In [11], an
+LC-oscillator based sensor is proposed to detect EM-attacks.
+Additionally, optical fault detectors monitoring frequency rip-
+ples are proposed in [12]. To address these FIAs together,
+deploying all these methods in a single device will incur a large
+area and power overhead. Also, one cannot guarantee that the
+potential physical interactions will not impact the detection capabilities of these techniques. Therefore, a universal and
+agile solution against most FIA vectors is preferred and
+urgently desired by the entire community. We analyzed the physical impacts of each type of FIAs on
+the victim device in-depth. Although the specific injection
+techniques vary, the consequent influence would be all
+applied on the circuit timing.•We proposed the delay line-based FTC sensor which can
+convert the physical consequence of injected faults to a
+measurable time scale to detect the deviations from thenominal status under attacks.•We implemented a version of the FTC senor on 28-nm
+Xilinx Zynq FPGAs. Although we strongly believe all
+five FIAs can be detected using FTC, in this paper, we
+share the results regarding EM injection, voltage glitch-
+ing, and clock glitching detection. Our results demon-
+strate that our FTC is quite capable of detecting such
+attacks at high accuracy.
+The remainder of the paper is organized as follows. Wediscuss the related work in Section II. Section III articulates
+the design architecture and working principle of the FTC
+sensor. In Section IV we present the experimental setup and
+results. Finally, Section V concludes the paper.
+II. RELATED WORK
+During the last two decades, different types of fault in-jection attacks have been reported in the literature. In [1],
+[13], [14], voltage glitching techniques have been proposed,
+which cause disruptions in the power line and capture the
+incorrect data. In [3], clock glitching is implemented using
+two external clocks that have different phases, whereas [15]
+proposes a glitch attack by overclocking the phase-locked loop
+(PLL). Considering EM, in [16], a charge-based fault model is
+proposed, showing the dependency of fault injection on supply
+voltage and design frequency. In [17], an EM-based sampling
+fault model is proposed. Finally, successful optical fault attacks
+have been proposed in [18] using diode lasers and [19] camera
+flashgun.Different detection and assessment techniques have beenproposed in the literature in response to these attacks [7], [8],
+[10]–[12]. However, these techniques have a few drawbacks.
+
+V. RESULTS AND DISCUSSION
+A. Experimental Setup
+In our implementation, the number of buffers in the observ-able delay line, N, is 64 as this number of stages providesenough monitoring range on delay variations for our specificimplementation. Thus, the encoded output is log2(64)=6-bit.We have used different setups to facilitate a set of FIAs forexperimentation. So far, EM attacks, voltage glitching, and
+clock glitching attacks have been implemented to test the
+effectiveness of the FTC sensor. We are currently applying
+Laser and optical FIAs to the FTC sensor. The results will
+be presented in future publications. As for EM attacks, we
+used the EMV-Langer E1 Immunity Development System to
+provide a range of EM intensity and waveform options. For
+voltage glitching, we have caused a short circuit momentarily
+at the larger capacitors of the FPGAs under test. This short
+circuit causes high current flow through the capacitor pins and
+a considerable voltage drop in the circuit. Finally, we used the
+Xilinx multi-mode clock manager (MMCM) IP to generate the
+high-frequency clock pulse for performing clock glitching. The
+target platforms were Digilent Zedboard featuring Xilinx Zynq
+7020 and Zybo Z7 board with Zynq 7010 FPGAs. The FTC
+sensor was put close [20] to a running AES implementation
+as the attack target of FIAs. The goal was to meticulously
+monitor delay variations under EM injection, voltage, and
+clock glitching attacks. Upon detecting the FIAs, we set aside
+the outputs generated by the actual application and consider
+resetting the application to clear faults.
+B. Experimental Results
+1) EM Attack Analysis: Figure 3a shows the sensor outputwhen the AES is running under nominal conditions andunder EM attack on the Zedboard. The EM generator has a
+controllable voltage knob from 500 − 1500 V. Also, there aretwo types of pulse options: flat pulse and steep pulse. We
+experimented under different conditions, and the sensor pro-
+vided differentiating outputs compared to the golden output.
+For this figure, we used 700V, a flat pulse, and a distance of
+3 feet from the generator to the victim device (FPGA). The
+near-field probe BS 04DB was connected to the EM generatorusing jumper wires and kept on top of the FPGA chip using
+a holder setup. This experimental setup is shown in Figure 4.
+One can see an observable difference (around 10) between the
+encoded outputs of the sensor for the two cases. The deviated
+output for the latter case can be associated with the alternating
+nature of the generated EM from the source. This alternating
+nature causes fluctuations on the power line and consequently
+in the delay line, thus being captured by FTC.2) Power Glitch Analysis: Next, we performed the voltageglitching on the Zybo Z7 board. For this attack, we analyzed
+the power connection diagram of the Board. Then we selected
+C108 100μF capacitor, included in the reconfigurable unit, toperform the short circuit. The measured voltage drop across
+the two pins of the capacitor under normal conditions was 1.5
+V. Figure 3b shows the comparison of encoded outputs for
+the voltage glitching attack. As one can see, under the voltage
+glitching, the encoded output curve of FTC is shifted upward
+by around 15 at average. Such changes seem contradictory
+since the induced voltage drop should slow the delay line,
+resulting in a decreased FTC output. However, such inference
+assumes that the introduced delay is smaller than half a cycle.
+Considering this voltage glitching scenario where the power
+supply was significantly impacted, the introduced delay should
+be greater than half a cycle. In other words, the seemingly
+’increased’ FTC readings are the outcomes of a large delayincrement induced by the voltage glitch.3) Clock Glitch Analysis: We have applied a 400 MHzglitch pulse on the AES implementation running at 100 MHz
+frequency in the Zybo Z7 board. The MMCM block from the
+IP catalog in the Vivado tool is used to generate two clock
+frequencies with 100 MHz and 400 MHz, respectively. An
+external switch is then used as a trigger with a counter logic
+to execute the glitch and limit its duration to a clock cycle
+(100 MHz). Figure 3c shows the comparative results for clock
+glitching (triggered at 4096th sample). It can be seen that thereis a negative offset for the glitched case between the two caseswhen comparing the samples before the trigger moment. The
+
+offset can be attributed to the increased interconnect delay foradding a logic block in the design. After the trigger moment,
+we see a higher magnitude sensor output throughout the rest of
+the samples. This variation can be associated with the clock-
+dependent integrated logic analyzer (ILA) (for observing the
+latched output). The ILA operates at the system frequency
+(100 MHz) in nominal conditions. At the point of glitching, it
+loses the frequency reference for capturing data momentarily.
+Although the system clock reverts to its original frequency at
+the next cycle, the ILA clock remains de-synchronized to the
+system clock for the rest of the samples. For this reason, we
+see the highly deviated random data captured after the trigger
+point. Since we set a threshold for detecting EM and voltage
+glitches, the same threshold can detect the clock glitch due to
+higher amplitudes.4) Proximity Analysis: We have also performed proximityanalysis for this FTC sensor on the Zedboard (Figure 5). Let
+us consider that the initial delay parameter is calibrated for a
+fixed distance of the FTC from a running program (5a). Now,
+if the distance is changed, the sensor loses sensitivity (5b).
+However, after re-calibrating the initial delay, FTC can return
+to the normal status sensing the fluctuations from the running
+AES design (5c).5) Area Overhead: The area overhead of the implementedFTC is minimal. The primitives used here are LUTs (128),
+latches (215), and carry chains (15). For LUTs, the resourceusage percentage is 215/53200 = 0.4%. Similarly, for otherprimitives, the usage percentage is also negligible. The pro-posed sensor can be isolated from the main application and
+hence does not impact the performance of the actual design.
+V. C ONCLUSION
+This paper proposes a universal sensor design that can detectseveral fault injection attacks by converting different fault
+effects into ”time”. Our experimental results have shown the
+sensor’s efficacy across three different fault attack scenarios.
+We believe the sensor will be highly effective in detecting
+both optical and laser fault attacks. We intend to parameterize
+the successful detection rate and false detection metrics to
+evaluate the sensor response more precisely. Also, we will
+assess the design performance against the mentioned attacks
+across platforms for future work. The sensor parameters can
+be efficiently tuned to achieve maximum sensitivity with these
+steps. Thus the proposed FTC sensor can go a long way
+in addressing a number of FIAs with high accuracy and
+effectivenes
+
+
+
+PAPER 12: Fuzzy-Glitch: A Practical
+Ring Oscillator Based Clock Glitch Attack
+
+Abstract—Clock glitches are useful in hardware secu-
+rity applications, where systems are tested for vulnera-
+bilities emerging from fault attacks. Usually a precisely
+timed and controlled glitch signal is employed. However,
+this requires complex generators and deep knowledge
+about the system under attack. Therefore we present a
+novel approach on clock glitch fault attacks that replaces
+the single precise glitch by a fuzzy glitch signal. We
+propose a compact FPGA design for fuzzy clock glitch
+generation, that is based on mixing two adjustable ring
+oscillators of different frequencies. The combination of
+these oscillators creates a glitch containing random and
+high frequency signal components. We show on the basis
+of a practical implementation on a Spartan-3E, that the
+proposed method is able to generate the desired fuzzy
+clock glitch. We verified experimentally, that the fuzzy
+clock glitch succeeds in error injection on an STM32F030,
+an ARM CORTEX-M0 based microcontroller. Our re-
+sults demonstrate that the fuzzy glitch is an adequate
+solution for fault injection.
+I. INTRODUCTION
+Embedded systems are employed in many applica-
+tions, ranging from industrial systems over automotive
+control units up to end-user devices. They contain
+intellectual property, such as algorithms and code,
+may be license-locked, and often include cryptographic
+algorithms and secret key material. As these systems
+become more powerful and hold more valuable in-
+formation, it also becomes more worthwhile for a
+malicious attacker to gain access to them. Thus such a
+system will be subject to various attacks. In order to
+establish protection and to estimate the probability of
+successful attacks, tools must be developed to execute
+and understand those attacks.
+There are various groups of hardware attacks, one of
+them are fault attacks which aim at causing erroneous
+operation of the processor and provoke leakage of
+critical information [1]. Clock glitches are an easy
+and effective technique to induce faults into a system.
+In general, a glitch can be described as a short and
+normally unwanted change of the signal’s logic level.
+This is depicted in Fig. 1 on the upper plot. In case of an
+attack, this short clock signal is induced intentionally,
+such that the device is operated at frequencies out
+of specification. This will lead to timing violations
+of registers and results in undefined behavior [2].
+The effects can be divided into two groups, control
+flow errors or data changes. The results in diversion
+of control flow are, e.g. early exit from loops or
+crashes [3], [4] . Data changes are especially critical for
+cryptographic algorithms, like AES, because they lead
+to very powerful attacks [5]. Hence, securing devices
+against fault attacks is very important
+
+
+. Evaluation and Results
+The clock glitch attack was executed on the em-
+bedded system and the effects were analyzed. The
+attack was configured to use ROs with a length of
+three and five inverters, the same setting as shown in
+Section III. The duration of glitch insertion was varied,
+starting with 20 ns. It was then increased in steps of
+20 ns up to a maximum time of 800 ns, totaling in
+40 different settings for duration. For each of the 40
+settings, we repeated the glitch attack 800 times and
+analyzed the result after each repetition. One glitch
+attack corresponds to replacing the 8 MHz clock with
+the clock glitch signal for the specified duration.
+The register and stack dumps show very different
+effects of the clock glitch. In most cases, the register
+r5 was affected, as the loop primarily operates on
+this register. It occurs, that the incrementation of r5
+fails and the register is set to a number less than
+ten, e.g., 0x06. Thus some instructions were skipped
+or the incrementation failed. Also the opposite was
+observed, where r5 was over-increased, e.g. to 0x14 or
+0x0C. This may have been caused by a skipped reset
+of r5, by multiple execution of a single instruction,
+or by miscalculation. In some cases, the r5 register
+contents were inconclusive, e.g., 0x08000606 or
+0x00800000. This is a hint on a major malfunction
+of the CPU that destroyed the register contents.
+There were cases, where r5 equaled ten, but nev-
+ertheless, the system left the loop. An analysis of
+the status register shows, that the compare instruction
+erroneously reported r5 being different from ten. This
+incorrect result is given to the following branch-if-equal
+instruction, the branch is not taken, and the loop is left.
+The branch instruction has also failed in some
+occasions. Despite r5 equals ten and the status register
+shows, that the compare of r5 with ten returned a
+positive result, the branch is not taken.
+The nopslide after the infinite loop has proven to
+be useful. The code was instrumented and it became
+visible that the glitch sometimes also causes the first few
+instruction of the nopslide to be executed incorrectly.
+Nevertheless, the analysis of these cases was still
+successful, since an error in nopslide execution does
+not cause any effect.
+In very few cases, around 10 % in average, the
+glitch causes a hard fault. The occurrence of any other
+interrupts was not observed. The stack and especially
+the return pointer was examined in this case. It became
+evident, that there is no certain instruction that causes
+the hard fault during a glitch. Instead, it happens
+randomly. The reason for the hard fault is unknown but
+can be speculated. One possibility may be an access to
+an invalid memory address, caused by a corruption of
+the program counter which holds the currently executed
+memory address. Another explanation is an error during
+instruction fetch, where an invalid instruction is given
+to the processor.
+The glitch can also cause a crash of the system.
+This was observed in less then 5 % up to 45 % in all
+cases, highly depending on the glitch duration. A lockup
+
+occurs, if the system is overstressed by the glitch, such
+that it ceases operation. Too many data was destroyed,
+what leads to an unrecoverable malfunction.
+E. Statistical Evaluation
+A plot of glitch effectiveness vs. length is depicted
+in Fig. 9. The data is based on 800 measurements per
+glitch duration.
+The plot shows, that for very short glitch durations,
+there is no effect on the system in about 80 %. Upon
+increasing the glitch duration the ratio of unsuccessful
+attempts begins to decline quickly. At 200 ns duration,
+the glitch causes an effect in 90 % of the cases.
+As the glitch duration approaches 180 ns, the prob-
+ability for success rises quickly. The optimal region
+for glitch duration spans from 180 ns up to 310 ns,
+where success is achieved in about 75 % of the attacks
+while maintaining little crash probability. This region
+of optimal glitch effectiveness is highlighted in Fig. 9.
+If the glitch duration is further increased, the success
+ratio begins to decline again.
+The probability for a system crash increases approx-
+imately linearly from 12 % at 300 ns to up to 45 %
+at around 800 ns. This increase takes place on cost
+of the success ratio, thus operating in this region is
+not advised. The crashes are attributed to an increased
+number of multiple errors due to the longer glitch,
+which effectively leads to a crash of the system.
+The probability for a hard fault stays below 15 %
+in most of the cases and has minor relevance for the
+attack.
+The plot shows, that despite the glitch is generated
+by a random process, its effect on the microcontroller
+is still under control and can be modified by varying
+the glitch duration. The results of the measurement
+are conclusive and match the expectation. Neither very
+short nor excessively long fuzzy glitch durations are
+optimal. The region of optimal glitch effectiveness spans
+between 180 ns up to 310 ns.
+V. CONCLUSION
+In this work we presented the novel class of fuzzy
+clock signal glitches. They are created by mixing the
+signals of two free-running adjustable ring oscillators
+which contribute randomness to the attack. We demon-
+strated successfully, that the proposed design can be
+implemented on an FPGA in practice. An experiment
+was set up, where an STM32F030, an ARM Cortex-
+M0 based microcontroller, was successfully attacked
+using fuzzy clock glitches generated by our design. The
+attack’s effects were analyzed in detail by employing a
+custom micrcontroller firmware. The results show, that
+our system reaches up to 75 % glitch effectiveness in the
+optimal case and remains over 50 % over a wide range
+of parameters, depending on the glitch duration. All in
+all, these results prove, that this alternative approach
+on clock glitch attacks is feasible and valid.
+
+
+
+PAPER 13: 
+Glitch in the Sky: Exploiting Voltage Fault Injection
+in UAV Flight Controllers
+
+Abstract—As Cyber-Physical Systems (CPS) become increas-
+ingly pervasive and autonomous, ensuring the resilience of their
+embedded logic is critical to maintaining safety and integrity.
+Among the most stealthy and damaging threats are non-invasive
+fault injection attacks, where hardware-level disturbances prop-
+agate into software execution and compromise control logic.
+In this paper, we investigate the susceptibility of Unmanned
+Aerial Vehicle (UAV) autopilot fail-safe mechanisms to voltage
+glitch fault injection. We introduce a dual evaluation approach:
+software-based fault simulation using ARMORY and hardware-
+based experiments with a voltage glitching platform (Chip-
+Whisperer), applying controlled and timely faults to an STM32
+microcontroller running UAV-Autopilot fail-safe logic. Our tar-
+geted analysis of specific fail-safe modes uncovers timing-sensitive
+vulnerabilities that can suppress or alter safety responses, such
+as disabling emergency failsafe activation at critical moments,
+potentially enabling UAV hijacking. Furthermore, we validate
+software-based fault injection results against real hardware
+behavior, demonstrating how simulated attacks translate into
+tangible risks for CPS security and reliability.
+Index Terms—Hardware faults, Voltage glitching, Cyber-
+Physical Systems
+I. INTRODUCTION
+Fault injection [1] is a powerful evaluation technique used
+to induce unintended behavior in a Device Under Test (DUT)
+by temporarily disturbing its runtime environment, either at the
+software level [2], [3] or through physical hardware manipula-
+tion. Hardware-level fault injection methods range from clock
+glitching and voltage fault injection (VFI) to electromagnetic
+(EM) radiation and laser fault injection. These techniques
+momentarily disrupt the normal operation of a device. The
+potential consequences are named as Fault Model, including
+bit flip [4], skipping of machine instructions [5] or altering the
+data stored on a device’s internal memory [6].
+To date, much of the fault injection research has focused on
+security-critical operations, such as cryptographic implementa-
+tions (e.g., AES, RSA) [7]–[10] and secure boot mechanisms
+[11]. These studies have demonstrated that carefully timed
+faults can bypass firmware verification, extract secret keys,
+or undermine trusted execution environments. On the other
+sides, the broader field of Cyber-Physical Systems (CPS) se-
+curity [12], [13] has gained significant traction, as researchers
+demonstrate how cyber-attacks can manipulate physical out-
+comes [14]–[16]. However, the security implications of fault
+injection on Cyber-Physical Systems (CPS) [17], [18], such
+1 † Corresponding Author.
+as Unmanned Aerial Vehicles (UAVs), has been understudied,
+especially at high-level application logic [19]–[22]. In these
+systems, safety and reliability are paramount, and faults in
+control logic can lead to catastrophic outcomes (e.g., UAV
+hijacking, mission failure, or even crashes) [23], [24].
+Fault injection testing plays a vital role in evaluating the
+resilience of UAV systems. One of the most widely used open-
+source autopilot platforms, PX4-Autopilot, includes safety-
+critical components such as failsafe mechanisms designed
+to prevent accidents when sensor errors or communication
+failures occur. These routines are foundational to drone safety
+in autonomous or semi-autonomous flight.
+However, fault injection poses a serious security and safety
+risk to UAVs. An attacker is capable of injecting faults
+when the failsafe logic is executing, resulting in uncontrolled
+behavior or crash scenarios. As modern drones become more
+connected and complex, their exposure to both remote and
+physical attacks grows. Despite this risk, no prior work has
+comprehensively investigated hardware fault injection on PX4
+or other CPS platforms, leaving a critical gap in CPS system
+security research [25], [26].
+This paper aims to bridge that gap by investigating the
+vulnerability of one of the widely used autopilots for UAVs,
+PX4-Autopilot, and its safety mechanisms to fault injection
+attacks. To achieve this, the study will employ a dual approach:
+conducting software-based simulation using ARMORY and
+performing hardware-based fault injection with ChipWhisperer
+paired with an STM32 microcontroller. The main objectives
+are to evaluate the effectiveness and characterize the conse-
+quences of these fault injections on system behavior.
+This work makes several contributions:
+•It addresses a critical gap in Cyber-Physical Systems
+(CPS) security research by examining hardware-level
+vulnerabilities, which are often overlooked compared to
+well-studied software-level threats.
+•A dual-method fault injection campaign targeting PX4-
+Autopilot, combining simulation-based attacks using AR-
+MORY with physical hardware glitching on STM32
+microcontrollers.
+•A security evaluation of PX4’s failsafe routines, identi-
+fying timing-sensitive attack windows and characterizing
+the impact of injected faults on decision logic.
+•Demonstration of the complementary strengths of sim-
+ulation and hardware testing, bridging the gap between
+abstract fault models and real-world hardware behavior
+
+A. Unmanned Aerial Vehicles Autopilot Security
+Unmanned Aerial Vehicles (UAVs) are increasingly de-
+ployed in fields ranging from agriculture and logistics to
+surveillance and defense. Many of these systems rely on open-
+source autopilot frameworks, with PX4 being one of the most
+widely adopted due to its modular architecture and support
+for diverse platforms. The growing autonomy and connectivity
+of UAVs are accompanied by escalating cybersecurity vul-
+nerabilities. Existing UAV security research has primarily fo-
+cused on software-level threats. Communication protocols like
+MAVLink, used extensively by PX4 for telemetry and control,
+have been shown to be susceptible to injection and denial-of-
+service (DoS) attacks [27]. Furthermore, software fuzzing has
+uncovered critical vulnerabilities where malformed messages
+can crash or hijack UAV behavior. [28]–[31]. Navigation
+security is another well-studied area, with research focusing
+on defending against GPS spoofing by enhancing the Extended
+Kalman Filter (EKF) with anomaly detection. [32] While
+this software-centric research is valuable, it often overlooks
+threats at the hardware level. PX4-based UAVs typically run on
+resource-constrained microcontrollers that lack strong physical
+protections. These platforms remain exposed to Fault Injection
+(FI) attacks [1] , which can silently disrupt control logic or
+bypass safety mechanisms without triggering software-level
+alarms. Despite their potential severity, hardware-based fault
+injection remains significantly underexplored in the context of
+UAV autopilot resilience
+B. Hardware Fault Injection
+Fault injection is a powerful technique used to evaluate the
+robustness of embedded systems or to compromise their secu-
+rity. It involves the deliberate introduction of transient faults
+into a device’s physical environment during runtime to induce
+unintended behaviors. These attacks have been widely applied
+to compromise cryptographic hardware, such as extracting
+secret keys from AES or RSA implementations [7], [8], and
+to undermine secure boot mechanisms in microcontrollers and
+IoT devices [34], [35]. Faults can be induced through var-
+ious environmental manipulations, including clock glitching,
+electromagnetic interference, and laser-based injection [36].
+These disturbances typically result in a Fault Model, which
+describes the logical outcome of the physical attack. Common
+fault models include bit-flips in memory, the corruption of
+data stored in registers, or the skipping of critical machine
+instructions. When targeted at control-flow logic, these faults
+allow an attacker to redirect program execution, effectively
+bypassing security checks or safety routines.
+C. Voltage-based Fault Injection
+Among the various methods of fault injection, Voltage
+Glitching, often referred to as a Power Fault, is frequently
+favored due to its lower cost and effectiveness across a wide
+range of embedded targets [36]. It involves introducing a
+short, intentional disturbance or ”glitch” into the power supply
+(VCC) of a processor. This brief voltage drop disrupts the
+normal timing of digital logic gates, leading to effects such
+as instruction skips or incorrect branching. The success of
+a power fault depends on the critical relationship between
+voltage stability and the precise timing of digital operations.
+As illustrated in Figure 1, an effective glitch requires both a
+sufficient voltage drop and carefully controlled timing. The
+following parameters [33], [35] are essential for configuring
+a successful voltage glitch:
+•Trigger: The external event or signal that initiates the
+glitching sequence. This serves as the temporal starting
+point for the attack.
+•Start Offset: The time delay, usually measured in clock
+cycles, between the Trigger and the Synchronization
+point.
+•Synchronization: A specific reference point in time
+within the target system’s execution used to align the fault
+with a specific instruction.
+•Phase Offset: A fine-grained delay used to shift the glitch
+relative to the clock edge. A positive offset occurs after
+the rising edge, while a negative offset occurs before it.
+•Width: The duration of the voltage drop. This determines
+the overall impact on the target’s logic gates and whether
+the fault results in a reset or a successful glitch.
+By precisely timing these parameters to coincide with criti-
+cal decision-making logic, such as the PX4 failsafe routines, an
+attacker can fundamentally subvert the drone’s intended safety
+state. In Figure 1, the green area represents the normal oper-
+ating voltage range of the device, while the red shaded area
+indicates the voltage levels where the operation of device may
+become unreliable or faulty. The voltage level that separates
+these ranges is device-specific and depends on factors such
+as the architecture of microcontroller, manufacturing process,
+and operating frequency.
+
+1) Software Simulation Findings (ARMORY): Unlike pre-
+vious isolated tests, this simulation (Figure 15) began at the switch-case function label, incorporating a broader execution
+context. Out of 26,976 injected faults, 1,363 resulted in ex-
+ploitable outcomes. The most prominent fault activity occurred
+early in the trace (cycles 0 to 73), corresponding directly to
+the execution of the battery helper function. Following this, the
+trace entered a Processing Loop, reflected by a cyclic pattern
+of fault activity between roughly 130 to 370 clock cycles.
+When extracting just the helper function for focused analy-
+sis (Figure 16), exploitable outcomes concentrated heavily in
+the initial clock cycles (3 to 7) and toward the later portion
+of the window (45 to 64), driven primarily by bit-flip faults
+2) Hardware Validation: Because this scenario incorpo-
+rated additional failsafe logic before the target function,
+temporal alignment required adjustment. Successful physical
+exploits were not recorded until an Offset of 15 clock cycles.
+As shown in Figure 17, when the testing window was narrowed
+to physical offset of 13 to 21 cycles, a dense cluster of physical
+faults emerged within a 4-cycle window (in ChipWhisperer
+timing). Applying the clock ratio, this corresponds to ap-
+proximately 21 clock cycles within the STM32 framework,
+logically aligning with the highly vulnerable 45 to 64 clock
+cycle window identified in the ARMORY simulation
+
+3) Fault Effect Correlation: Evaluating the severity of the
+exploits (Figure 18), the most frequently observed physical
+responses were None/Disable and Warn. This indicates that
+inducing a fault at almost any vulnerable point within the
+helper logic successfully degrades the system’s ability to
+trigger the emergency landing. Furthermore, as detailed in the
+hardware experiment results (Figure 19), the most prominent
+fault-induced outcome was None. Forcing the flight controller
+into a state of total inaction during an emergency battery level
+proved to be the most reliable and devastating exploit in this
+scenario
+TABLE II: Simulation Result of the Voltage Glitch’s Effect
+Scenario Glitched Behavior Expected Behavior
+RC Signal Loss Hold Return to Launch
+Battery Critical Hold Return-to-Launch
+Battery Emergency Land Land
+We evaluate the effect of a successful voltage glitch on
+the PX4 system in software-in-the-loop simulation using the
+Gazebo Classic simulator. To emulate the effect of a successful
+voltage glitch, we manually force the selected failsafe Action
+to None, thereby discarding the behavior chosen by the failsafe
+logic. Under the RC signal loss and battery critical scenarios,
+the pseudo glitch successfully disrupts the expected RTL
+behavior. However, in the battery emergency scenario, the
+glitch does not prevent the system from landing, suggesting
+that the landing control logic has higher priority than RTL in
+the PX4 system
+
+
+VI. CONCLUSION
+This paper presented a novel, highly localized physical
+threat model targeting Unmanned Aerial Vehicles (UAVs): an
+autonomous, discrete voltage glitch implant designed to bypass
+critical flight controller failsafes. To validate the viability of
+this threat, we employed a rigorous two-phase methodology,
+correlating machine-code level vulnerabilities identified via
+ARMORY software simulation with empirical fault injection
+data gathered using a ChipWhisperer device to attack an
+STM32-based flight controller board.
+Our evaluation across three critical PX4 failsafe scenarios
+demonstrated the severe practicality of this attack vector.
+The findings revealed timing-sensitive vulnerabilities where
+precisely injected faults reliably corrupted critical instruction
+execution within the failsafe helper logic. Most alarmingly,
+the physical experiments revealed a strong tendency for the
+hardware to completely bypass intended safety protocols.
+Furthermore, these physical experiments exposed the system’s
+susceptibility to extended transient faults that triggered Hard-
+Fault exceptions; complex physical behaviors not observable
+through ARMORY alone, underscoring the absolute necessity
+of empirical hardware-based analysis.
+Ultimately, the ability to neutralize a UAV’s final line
+of defense highlights a critical blind spot in current flight
+controller architectures, demonstrating that future mitigation
+strategies must embrace hardware-software co-design to secure
+the underlying processor
