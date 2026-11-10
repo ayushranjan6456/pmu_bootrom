@@ -1,0 +1,14 @@
+Date: 2026-11-10T08:19:19+05:30   N=20 per setting
+QEMU: QEMU emulator version 8.2.2
+Mean clean sub_b: 582.651 cycles (from data/nominal_boots.csv)
+
+Skip %  Iterations  Detected   Mean b    Median b  Mean reduction
+0       300         1/20       677.1     623       -16.2%
+25      225         0/20       626.1     638       -7.5%
+50      150         1/20       584.0     615       -0.2%
+75      75          0/20       588.2     608       -1.0%
+90      30          1/20       593.0     602       -1.8%
+99      3           0/20       600.8     603       -3.1%
+100     0           20/20      262.2     269       55.0%
+
+Rebuilt the normal firmware (app.elf).

@@ -44,4 +44,6 @@ ax2.legend()
 ax2.grid(True, linestyle='--', alpha=0.7)
 
 plt.tight_layout()
+plt.savefig('results/cycle_stability.png', dpi=150, bbox_inches='tight')
+print("Saved: results/cycle_stability.png")
 plt.show()

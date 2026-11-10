@@ -2,7 +2,7 @@
 
 Quick start guide for the PMU-based fault injection detection system.
 
-**Status:** Phase 1 Complete ✅ (100% detection, 0% false alarms)
+**Status and results:** see [STATUS.md](STATUS.md)
 
 ---
 
@@ -29,13 +29,10 @@ make clean && make
 # Run single boot
 make run
 
-# Expected output:
-# === PMU BOOTROM STUB v0.3 ===
-# CP 0: elapsed=1083, sub=(0, 0, 0)
-# CP 1: elapsed=2588, sub=(695, 587, 503)
-# CP 2: elapsed=4372, sub=(691, 560, 539)
-# CP 3: elapsed=5899, sub=(656, 548, 323)
-# === BOOT COMPLETE ===
+# Expected output: banner, then a DATA_START ... DATA_END CSV block
+# (cp,elapsed,sub_a,sub_b,sub_c per checkpoint), stage durations,
+# and "=== BOOT COMPLETE ===". A glitched build prints
+# "!!! ATTACK DETECTED at CP2 !!!" and halts instead.
 ```
 
 ### 3. Train Detector Model
@@ -70,10 +67,8 @@ make clean && make
 # Run automated test suite
 bash scripts/test_firmware_detector.sh
 
-# Expected:
-# False Alarm Rate: 0%
-# Detection Rate: 100%
-# ✅ ALL TESTS PASSED!
+# Prints the false alarm rate and detection rate; PASS means <=5% false alarms and >=90% detection.
+# Measured values for the 1000-boot run are in STATUS.md.
 ```
 
 ---
@@ -92,7 +87,9 @@ pmu_bootrom/
 │   ├── build_model.py            # Train Gaussian model
 │   ├── cusum_detector.py         # Detector simulation
 │   ├── calibrate_firmware.py    # Model → C code generator
-│   ├── test_firmware_detector.sh # Automated tests
+│   ├── test_firmware_detector.sh # Automated tests (clean + glitched boots)
+│   ├── baseline_comparison.py    # Mahalanobis vs plain sub_b thresholds
+│   ├── severity_sweep.sh         # Partial-skip glitch builds (see limitation)
 │   ├── visualize.py              # Data visualization
 │   └── data_quality.py           # Dataset validation
 │
@@ -142,6 +139,10 @@ python scripts/cusum_detector.py
 
 # Visualize cycle stability
 python scripts/visualize.py
+
+# Compare Mahalanobis against plain sub_b thresholds (run from pmu_bootrom/)
+python scripts/baseline_comparison.py
+# Needs data/nominal_boots.csv and data/attack_boots.csv. Results: STATUS.md
 ```
 
 ### Testing
@@ -153,11 +154,17 @@ timeout 0.5 make run | grep "ATTACK DETECTED" || echo "Clean ✓"
 
 # Test glitch attack (expect alarm)
 make clean
-make CFLAGS="-mcpu=cortex-m33 -mthumb -O2 -g -DGLITCH_ATTACK" app.elf
+make CFLAGS="-mcpu=cortex-m33 -mthumb -O0 -g -Wall -fno-builtin -DGLITCH_ATTACK" app.elf
 timeout 0.5 make run | grep "ATTACK DETECTED" && echo "Detected ✓"
 
 # Run full test suite
 bash scripts/test_firmware_detector.sh
+
+# Partial-skip glitch sweep (N boots per setting, default 20)
+PCTS="25 50 75" N=20 bash scripts/severity_sweep.sh
+# Rebuilds app.elf at the end. In QEMU the result does not depend on the skip
+# percentage (see STATUS.md, "Firmware partial-severity sweep"), so use it
+# for the experiment, not for a detection-versus-severity claim.
 ```
 
 ---
@@ -192,23 +199,15 @@ For each checkpoint:
 ```
 
 **Parameters:**
-- μ: Mean vector [691, 587, 503]
-- Σ⁻¹: Inverse covariance matrix (3×3)
-- k: Slack parameter (1.528)
-- H: Threshold (13.844 for 1% FA rate)
+- μ: Mean vector, Σ⁻¹: inverse covariance matrix (3×3)
+- k, H: see `CUSUM_MODEL` in `src/cusum_detector.c`. Firmware runs once per boot, so k = 0 and the alarm is MD > H.
+  The Python simulation uses a different, sequential k and H (see FIRMWARE_DETECTOR.md).
 
 ---
 
-## Performance Metrics
+## Performance
 
-| Metric | Value |
-|--------|-------|
-| Detection Rate | 100% (20/20 attacks) |
-| False Alarm Rate | 0% (0/20 clean boots) |
-| Detection Latency | 3.5 μs (350 cycles) |
-| RAM Usage | 112 bytes |
-| Flash Usage | 2.1 KB |
-| ROC AUC | 1.0000 |
+Measured results, and which figures are still unmeasured estimates, are in [STATUS.md](STATUS.md).
 
 ---
 
@@ -227,7 +226,7 @@ sudo apt install qemu-system-arm
 ```
 
 **Problem:** Link error `undefined reference to __aeabi_ldivmod`
-- Solution: Avoid 64-bit division in firmware (use integer sqrt)
+- Solution: Avoid 64-bit division in firmware (`fixed_sqrt` uses a division-free bit-by-bit method)
 
 ### Runtime Issues
 
@@ -247,37 +246,24 @@ make clean && make
 
 **Problem:** Attacks not detected
 - Check glitch severity in main.c (should skip entire sub_b loop)
-- Verify model is calibrated (H_99 threshold)
-- Run debug mode: uncomment `debug_mahalanobis()` call
+- Verify the model was regenerated with `scripts/calibrate_firmware.py` and pasted into `src/cusum_detector.c` (alarm when MD > H)
+- Compute the Mahalanobis distance of a boot offline from its `sub_a`, `sub_b`, `sub_c` values using the embedded `mu` and `cov_inv`
 
 ### QEMU Issues
 
 **Problem:** QEMU version < 8.0 (mps2-an505 not available)
-- See [QEMU_VERSION_FIX.md](QEMU_VERSION_FIX.md) for upgrade instructions
+- Install QEMU 8.0 or newer (the project was run on 8.2.2); older releases lack the `mps2-an505` machine or have a UART bug
 
 **Problem:** Timing noise too high (CV > 15%)
 - QEMU limitation - expected CV ~10%
-- Hardware will have CV < 0.5%
+- Hardware variance is expected to be lower; this is a hypothesis to test in Phase 2
 - Use empirical threshold calibration
 
 ---
 
 ## Documentation
 
-### Getting Started
-- **[../README.md](../README.md)** - Repository overview
-- **[PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md)** - Architecture
-- **[PROJECT_GUIDE.md](PROJECT_GUIDE.md)** - Implementation details
-
-### Technical Details
-- **[FIRMWARE_DETECTOR.md](FIRMWARE_DETECTOR.md)** - Detector API & performance
-- **[docs/GAUSSIAN_ASSUMPTION_ANALYSIS.md](docs/GAUSSIAN_ASSUMPTION_ANALYSIS.md)** - Statistical analysis
-- **[../CLAUDE.md](../CLAUDE.md)** - Development guidelines
-
-### Project Status
-- **[PHASE1_COMPLETION.md](PHASE1_COMPLETION.md)** - Phase 1 summary
-- **[KNOWN_ISSUES.md](KNOWN_ISSUES.md)** - Issue tracking
-- **[SESSION_SUMMARY_2026-11-07.md](SESSION_SUMMARY_2026-11-07.md)** - Development log
+See the document map in [STATUS.md](STATUS.md#8-document-map).
 
 ---
 
@@ -301,32 +287,25 @@ make clean && make
 
 ### Modifying Attack Simulation
 
-Edit `#ifdef GLITCH_ATTACK` block in `stage_signature_verify()`:
+The glitch lives in the `#ifdef GLITCH_ATTACK` block in `stage_signature_verify()` (`src/main.c`). It shortens the sub-stage B loop (300 iterations clean).
 
-```c
-#ifdef GLITCH_ATTACK
-    // Current: Skip entire sub_b loop
-    // Effect: 500 cycle reduction (85% severity)
-    
-    // For weaker glitch:
-    for (volatile uint32_t i = 0; i < 100; i++) {  // Break early
-        break;
-    }
-    
-    // For stronger glitch:
-    goto skip_sub_b;  // Skip everything
-#endif
+| Build flag | Effect |
+|------------|--------|
+| `-DGLITCH_ATTACK` | Skips the whole sub-stage B loop (default, `GLITCH_SKIP_PCT=100`) |
+| `-DGLITCH_SKIP_PCT=<n>` | Skips n percent of the iterations (loop bound becomes `300 * (100 - n) / 100`) |
+| `-DCOLLECT_MODE` | Detector reports but does not halt, so telemetry is still printed (used by `make collect-attack`) |
+
+```bash
+make CFLAGS="-mcpu=cortex-m33 -mthumb -O0 -g -Wall -fno-builtin -DGLITCH_ATTACK -DGLITCH_SKIP_PCT=50" app.elf
 ```
+
+Note: in QEMU, `sub_b` barely changes until the loop is removed completely, so partial skips are not distinguishable from a clean boot. Details and numbers: [STATUS.md](STATUS.md), section "Firmware partial-severity sweep".
 
 ### Adjusting Detection Sensitivity
 
-**Option 1: Tune CUSUM slack parameter**
-```bash
-python scripts/tune_kslack.py
-# Grid search for optimal k value
-```
+**Option 1: Firmware threshold.** The firmware runs once per boot, so `k = 0` and the alarm is MD > H. Change `MARGIN` in `scripts/calibrate_firmware.py` (H = MARGIN x largest clean MD), regenerate, and paste the output into `src/cusum_detector.c`. Then re-run the validation.
 
-**Option 2: Change threshold**
+**Option 2: Python detector threshold** (`k` is the 70th percentile of clean MD, set in `build_model.py`)
 - Edit `build_model.py` after line fitting
 - Use `H_99` (1% FA) or `H_999` (0.1% FA)
 - Regenerate model with `make collect && python scripts/build_model.py`
@@ -364,45 +343,18 @@ python scripts/tune_kslack.py
 
 ---
 
-## Known Limitations
+## Limitations and Phase 2 plan
 
-1. **QEMU Timing Noise:** CV ~10% vs. <0.5% on hardware
-2. **Single Checkpoint:** Only CP2 monitored
-3. **Simulated Faults:** Macro-based, not instruction-level
-4. **Low Severity:** <15% timing shifts may be missed
-
-**Phase 2 addresses these with hardware validation.**
-
----
-
-## Next Steps (Phase 2)
-
-1. **Hardware Setup**
-   - Acquire STM32L552 dev board
-   - Port firmware to real hardware
-   - Replace SysTick with DWT counters
-
-2. **Fault Injection**
-   - Debugger-based injection (GDB breakpoints)
-   - Optional: DIY voltage glitching
-   - Characterize real glitch signatures
-
-3. **Algorithm Improvements**
-   - Multi-checkpoint fusion
-   - Adaptive thresholding
-   - Constant-time implementation
+See [STATUS.md](STATUS.md#6-limitations) and [STATUS.md](STATUS.md#7-phase-2-plan).
 
 ---
 
 ## Support
 
 **Issues:** See [KNOWN_ISSUES.md](KNOWN_ISSUES.md)  
-**Environment:** See [QEMU_VERSION_FIX.md](QEMU_VERSION_FIX.md)  
+**Environment:** QEMU 8.0 or newer, see Troubleshooting above  
 **Questions:** Refer to comprehensive documentation
 
 ---
 
-**Project Status:** Phase 1 Complete ✅  
-**Last Updated:** November 7, 2026  
-**Development Time:** ~205 hours  
-**Documentation:** 300+ pages
+Project status, effort and results: [STATUS.md](STATUS.md)

@@ -10,7 +10,7 @@
  * Part of: PMU-Based Statistical Detection of FI Attacks in Secure Boot
  * Phase: 1 (QEMU Simulation)
  * Date: November 2026
- * Status: Operational (100% detection, 0% false alarms)
+ * Results: see STATUS.md
  */
 
 #ifndef CUSUM_DETECTOR_H
@@ -29,27 +29,16 @@
  */
 typedef int32_t fixed_t;
 
-#define FIXED_ONE       (1 << 16)           /* 1.0 in Q16.16 */
-#define FIXED_HALF      (1 << 15)           /* 0.5 in Q16.16 */
-
 /* Convert float to Q16.16 at compile time (for model parameters) */
 #define FLOAT_TO_FIXED(x)   ((fixed_t)((x) * 65536.0f))
+
+/* Any single sub-stage above this many cycles is an automatic alarm (the
+ * largest sub-stage in the clean training data is 934 cycles). */
+#define SUBSTAGE_ALARM_CYCLES   4096U
 
 /* Convert int to Q16.16 */
 static inline fixed_t int_to_fixed(int32_t x) {
     return x << 16;
-}
-
-/* Multiply two Q16.16 numbers */
-static inline fixed_t fixed_mul(fixed_t a, fixed_t b) {
-    /* Result is Q32.32, shift right 16 to get Q16.16 */
-    int64_t prod = ((int64_t)a * (int64_t)b) >> 16;
-    return (fixed_t)prod;
-}
-
-/* Convert Q16.16 to float (for debugging/UART output only) */
-static inline float fixed_to_float(fixed_t x) {
-    return (float)x / 65536.0f;
 }
 
 /* ──────────────────────────────────────────────────────────────────────
@@ -58,8 +47,8 @@ static inline float fixed_to_float(fixed_t x) {
  * Contains calibrated parameters from Python training:
  *   - mu: mean vector (3D) for CP2 features [sub_a, sub_b, sub_c]
  *   - cov_inv: inverse covariance matrix (3x3, symmetric)
- *   - k_slack: CUSUM slack parameter (reduces noise sensitivity)
- *   - H: alarm threshold (H_99 targets 1% false alarm rate)
+ *   - k_slack: CUSUM slack parameter (0 for the one-shot configuration)
+ *   - H: alarm threshold (with k_slack = 0, alarm when MD > H)
  */
 typedef struct {
     fixed_t mu[3];              /* Mean vector */
@@ -153,11 +142,5 @@ fixed_t mahalanobis_distance(const uint32_t obs[3],
  * Accuracy: Error < 0.001 for typical PMU values
  */
 fixed_t fixed_sqrt(fixed_t x);
-
-/*
- * DEBUG: Mahalanobis distance with UART output of intermediate values.
- * Use for debugging fixed-point calculation issues.
- */
-void debug_mahalanobis(const uint32_t obs[3], const cusum_model_t *model);
 
 #endif /* CUSUM_DETECTOR_H */

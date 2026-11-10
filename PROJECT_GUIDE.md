@@ -10,7 +10,7 @@ This is a **research implementation** of PMU-based statistical detection for fau
 
 **Research Goal:** Detect voltage/clock glitch attacks on bootrom signature verification using timing anomalies, achieving >90% detection rate with <2% false alarms.
 
-**Current Implementation Status:** Simulation infrastructure complete, Python detector validated. The firmware detector (CUSUM in embedded C) is not yet implemented.
+**Current Implementation Status:** see [STATUS.md](STATUS.md). Both the Python detector and the firmware-embedded detector exist.
 
 ## Important Caveats
 
@@ -208,15 +208,16 @@ K_SLACK = percentile(MD_nominal, 70)               # 70th percentile
 - During clean boots: ~30% of observations push S upward, ~70% push downward
 - Net drift is zero on average
 - During attack: most observations push S upward strongly
-- Typical value: K_SLACK ≈ 2.0-2.5
+- Current value: K_SLACK ≈ 1.7 (stored in `data/model.npz`)
 
 **Step 5: Threshold H Calibration (lines 134-219)** 🔥 **CRITICAL INNOVATION**
 
 **The Problem with Naive Approach:**
 ```python
 # WRONG: Using single-observation MD distribution
-H_wrong = percentile(MD_nominal, 99)  # e.g., 3.5
-# Result: 8-10% false alarm rate (not 1%!)
+H_wrong = percentile(MD_nominal, 99)  # about 4.9 on the current data
+# Result: about 13% false alarm rate over 20-boot windows (not 1%)
+# (ad hoc simulation on the current model data; not a repo script)
 ```
 
 **Why This Fails:**
@@ -242,11 +243,14 @@ H_99 = percentile(max_S, 99)    # 1% false alarm target
 H_999 = percentile(max_S, 99.9)  # 0.1% false alarm target
 ```
 
-**Typical Values:**
+**Typical Values (from `data/model.npz`, Python sequential detector):**
 ```
-H_99 ≈ 5.2   (1% FA rate)
-H_999 ≈ 8.7  (0.1% FA rate)
+k_slack ≈ 1.685  (70th percentile of clean MD)
+H_99 ≈ 10.14     (99th percentile of 20-boot window maximum)
+H_999 ≈ 13.32    (99.9th percentile)
 ```
+
+The firmware uses a different calibration (one-shot): `k_slack = 0`, `H = 1.25 × max clean MD ≈ 10.84`. See [FIRMWARE_DETECTOR.md](FIRMWARE_DETECTOR.md).
 
 **Verification (lines 192-218):**
 ```python
@@ -384,7 +388,7 @@ for H in H_sweep:
 # Sort by FA rate for proper AUC
 sort_idx = argsort(roc_fa)
 auc = trapezoid(roc_det[sort_idx], roc_fa[sort_idx])
-# Typical: AUC ~ 0.992 at 20% severity
+# Result at 20% severity: see STATUS.md section 2 (synthetic attacks)
 ```
 
 **Visualization (lines 189-271):**
@@ -443,15 +447,6 @@ Checkpoint 2 (n=450):
 - Feature trends across boot sequence
 - Distribution histograms
 - Helps spot outliers, visualize stability
-
-#### [scripts/tune_kslack.py](./scripts/tune_kslack.py)
-
-**Grid Search Optimization:**
-- Tests K_SLACK values from 50th to 90th percentile
-- For each k, measures detection rate and false alarm rate
-- Finds optimal balance
-
-**Typical Result:** k at 70th percentile gives best tradeoff.
 
 ### Build System (Makefile)
 
@@ -781,11 +776,7 @@ Right: CUSUM S distribution under H0
 - Red line: False alarm rate
 - Gray line: Target FA = 1%
 
-**Interpretation:**
-- 5% severity: ~50% detection (subtle, easy to miss)
-- 10% severity: ~80% detection (moderate confidence)
-- 20% severity: ~95% detection (high confidence)
-- False alarms stay ~1% across all severities (good calibration)
+**Interpretation:** detection rises steeply with severity: subtle shifts are mostly missed, large ones are caught. Measured rates per severity are in [STATUS.md](STATUS.md#2-results). False alarms stay near the 1% calibration target across severities.
 
 **Plot 4: ROC Curve**
 - X-axis: False alarm rate
@@ -795,9 +786,8 @@ Right: CUSUM S distribution under H0
 - Vertical gray line: Operating point (FA=1%)
 
 **Metrics:**
-- AUC ≈ 0.99 → Excellent discriminative power
-- At FA=1%, detection rate ≈ 95% (good tradeoff)
-- Curve hugs top-left corner → strong detector
+- AUC and the detection rate at FA=1%: see [STATUS.md](STATUS.md#2-results)
+- A curve hugging the top-left corner indicates a strong detector at that severity
 
 ### Interpreting Empirical Attack Results
 
@@ -914,19 +904,19 @@ After n=10 boots:
 P(miss) ≤ exp(-10 * 3.06) = 1.5e-13 (virtually zero)
 ```
 
-This explains why detection rate is ~95% at 20% severity with just 2-3 boots.
+This is the theoretical bound for a Gaussian shift. Measured detection rates are in [STATUS.md](STATUS.md#2-results).
 
 ### Why Threshold Calibration Matters
 
-**Common Mistake (leads to 8-10% false alarms):**
+**Common Mistake (leads to roughly 10-13% false alarms over 20-boot windows):**
 ```python
 # WRONG: Use single-observation percentiles
 MD_nominal = [mahalanobis(x, mu, Σ⁻¹) for x in X_clean]
-H_wrong = percentile(MD_nominal, 99)  # e.g., 3.5
-k_wrong = percentile(MD_nominal, 70)  # e.g., 2.0
+H_wrong = percentile(MD_nominal, 99)  # about 4.9 on the current data
+k_wrong = percentile(MD_nominal, 70)  # about 1.7
 
 # Run detector with H_wrong
-false_alarms_observed = 8-10%  # NOT 1%!
+false_alarms_observed = about 13%  # NOT 1%
 ```
 
 **Why This Fails:**
@@ -942,12 +932,12 @@ for _ in range(10000):
     S = run_cusum(sequence, k_slack)
     max_S_values.append(max(S))
 
-H_correct = percentile(max_S_values, 99)  # e.g., 5.2
+H_correct = percentile(max_S_values, 99)  # about 10.1 on the current data
 
-# Result: Exactly 1% of clean sequences trigger alarm
+# Result: about 1% of clean sequences trigger alarm
 ```
 
-This is the **key contribution** that makes our detector work reliably.
+This calibration applies to the sequential Python detector (20-boot windows). The firmware runs once per boot and uses a separate one-shot threshold, see [FIRMWARE_DETECTOR.md](FIRMWARE_DETECTOR.md).
 
 ### Feature Engineering Insights
 
@@ -999,127 +989,17 @@ Harder to distinguish from normal variance
 
 ### QEMU vs. Real Hardware
 
-| Aspect | QEMU | Real Hardware |
-|--------|------|---------------|
-| **Cycle Variance** | Very low (~2 cycles) | Moderate (~10-20 cycles) |
-| **Causes of Variance** | Host OS jitter | Cache misses, pipeline stalls, interrupts |
-| **Determinism** | Near-perfect (same ROM → same cycles) | Probabilistic (same ROM → distribution) |
-| **Glitch Injection** | Software simulation (`#ifdef`) or TCG plugin | Physical (ChipWhisperer, voltage glitch) |
-| **Model Implications** | Gaussian assumption holds easily | May need wider tolerance, higher k_slack |
-| **Detection Difficulty** | Easier (low noise) | Harder (higher noise baseline) |
+Measured on QEMU (500 clean boots, checkpoint 2): sub-stage standard deviations are about 49 to 75 cycles, a coefficient of variation of roughly 9 to 11%, caused by host OS scheduling jitter. The features are not Gaussian (Shapiro-Wilk rejects normality). Details: [docs/GAUSSIAN_ASSUMPTION_ANALYSIS.md](docs/GAUSSIAN_ASSUMPTION_ANALYSIS.md).
 
-**Expected Changes for Real Hardware:**
-1. **Higher Variance:**
-   - QEMU: std(sub_b) ≈ 1.8 cycles
-   - Hardware: std(sub_b) ≈ 8-12 cycles (5-6× increase)
+Hardware variance has not been measured yet. Earlier versions of this guide and the Gaussian analysis document made opposite predictions (higher versus lower variance than QEMU), so treat both as hypotheses to be tested on the STM32L552 in Phase 2. The model, `k_slack` and `H` will need refitting on hardware data either way.
 
-2. **Adjusted Parameters:**
-   - k_slack may need to increase (75th-80th percentile)
-   - H_99 threshold will be higher (more accumulation needed)
-   - Detection lag may increase (3-5 boots instead of 2-3)
+### Firmware port
 
-3. **Still Detectable:**
-   - 20% severity = 141 cycle shift
-   - Even with std=12, shift is 11.75σ away
-   - Detection rate should remain >90%
+The fixed-point (Q16.16) Mahalanobis and CUSUM implementation is done. Design, API and integration: [FIRMWARE_DETECTOR.md](FIRMWARE_DETECTOR.md). Source: `src/cusum_detector.{h,c}`.
 
-### Porting to Firmware (Future Work)
+### Roadmap
 
-**Challenge:** Python uses floating-point Numpy operations. Firmware needs fixed-point arithmetic.
-
-**Fixed-Point Representation:**
-```c
-// Q16.16 format: 16 integer bits, 16 fractional bits
-typedef int32_t fixed_t;
-#define FP_SCALE 65536  // 2^16
-#define FP_MUL(a, b) (((int64_t)(a) * (b)) >> 16)
-#define FP_DIV(a, b) (((int64_t)(a) << 16) / (b))
-
-// Convert float to fixed
-fixed_t to_fixed(float f) {
-    return (fixed_t)(f * FP_SCALE);
-}
-```
-
-**Mahalanobis Distance (Fixed-Point):**
-```c
-fixed_t mahalanobis_q16(int32_t obs[3], const model_t *model) {
-    // d = obs - mu
-    fixed_t d[3];
-    for (int i = 0; i < 3; i++) {
-        d[i] = (obs[i] << 16) - model->mu[i];
-    }
-    
-    // temp = cov_inv @ d
-    fixed_t temp[3] = {0, 0, 0};
-    for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < 3; j++) {
-            temp[i] += FP_MUL(model->cov_inv[i][j], d[j]);
-        }
-    }
-    
-    // result = sqrt(d @ temp)
-    int64_t sum = 0;
-    for (int i = 0; i < 3; i++) {
-        sum += (int64_t)d[i] * temp[i];
-    }
-    sum >>= 16;  // Scale down once
-    return (fixed_t)int_sqrt_q16(sum);
-}
-```
-
-**Memory Footprint:**
-```c
-typedef struct {
-    fixed_t mu[3];           // 12 bytes
-    fixed_t cov_inv[3][3];   // 36 bytes
-    fixed_t k_slack;         // 4 bytes
-    fixed_t H_99;            // 4 bytes
-} model_t;                   // Total: 56 bytes
-
-typedef struct {
-    fixed_t S;               // 4 bytes
-    uint8_t alarm;           // 1 byte
-} cusum_state_t;             // Total: 5 bytes
-```
-
-**Total RAM overhead:** ~60 bytes (negligible for modern MCUs)
-
-**Cycle Overhead:**
-- Mahalanobis: ~150 cycles (3×3 matrix multiply + sqrt)
-- CUSUM update: ~10 cycles (add, max, compare)
-- Per checkpoint: ~160 cycles
-- 4 checkpoints: ~640 cycles (~8% overhead on 8000-cycle boot)
-
-### Next Steps Roadmap
-
-See [../Project_update](../Project_update) for comprehensive roadmap. Key priorities:
-
-**Week 1-2: Firmware CUSUM (80 hours)**
-1. Implement fixed-point Mahalanobis distance in C
-2. Port CUSUM update logic to firmware
-3. Generate `model_params.h` from `model.npz`
-4. Integrate detector into boot flow
-5. Print CUSUM S values over UART for validation
-
-**Week 3-4: Real Glitch Injection (60 hours)**
-1. Write QEMU TCG plugin for instruction-level faults
-2. Implement SKIP, REPEAT, CORRUPT fault modes
-3. Build parametric sweep script (cycle, mode, severity)
-4. Validate that firmware detector catches injected faults
-
-**Week 5-6: End-to-End Loop (40 hours)**
-1. Automated campaign: inject 1000 glitches at 5 severity levels
-2. Parse firmware UART for "ALARM" messages
-3. Generate real ROC curves from firmware detection
-4. Compare Python vs. firmware detector performance
-
-**Success Criteria for Phase 1 Review:**
-- ✅ Live demo: QEMU injects glitch → firmware prints "ALARM"
-- ✅ Detection: >90% at <2% FA for 20% severity
-- ✅ Code quality: Clean C implementation, well-documented
-- ✅ Theoretical grounding: Stein's Lemma bounds derivation
-- ✅ Multi-checkpoint: Monitor all 4 boot stages
+Current results, scope versus the proposal, and the Phase 2 plan are in [STATUS.md](STATUS.md).
 
 ## Validation Methodology
 
@@ -1137,32 +1017,7 @@ See [../Project_update](../Project_update) for comprehensive roadmap. Key priori
 
 ### Path to Rigorous Validation
 
-**Phase 1 (Simulation - Current):**
-- Collect nominal data from QEMU
-- Fit Gaussian model
-- Inject synthetic attacks (Python perturbation)
-- Measure detection performance
-
-**Phase 2 (Firmware Integration - Next 150 hours):**
-- Port detector to embedded C (fixed-point)
-- Inject real faults (QEMU TCG plugin)
-- Firmware raises alarm, Python analyzes UART log
-- Generate ROC curves from firmware detection
-
-**Phase 3 (Hardware Validation - Future 80 hours):**
-- Port firmware to real Cortex-M33 dev board
-- Collect clean data from hardware (500 boots)
-- Refit model on hardware distribution (higher variance)
-- Physical glitch injection (ChipWhisperer if available)
-- Measure detection on physical attacks
-
-**Phase 4 (Baseline Comparison - Future 50 hours):**
-- Implement redundant execution defense
-- Implement control-flow integrity checks
-- Compare detection rate, false alarms, overhead
-- Demonstrate CUSUM-PMU is superior
-
-Until Phase 2-3 complete, describe results as **"synthetic proof-of-concept that demonstrates feasibility of the approach"** not **"validated security defense."**
+Phase 1 results come from QEMU with a simulated fault, so describe them as a proof of concept, not a validated security defense. The remaining validation work (real fault injection, hardware data, baseline comparison against redundant execution, train/test split) is the Phase 2 plan in [STATUS.md](STATUS.md#7-phase-2-plan).
 
 ## Troubleshooting
 

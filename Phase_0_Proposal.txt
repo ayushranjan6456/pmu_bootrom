@@ -1,0 +1,65 @@
+Ayush Ranjan
+EE24M504
+Texas Instruments
+ee24m504@smail.iitm.ac.in
+Statistical Anomaly Detection for Fault Injection in Secure BOOTROM
+Communication Systems and Signal Processing
+
+Title
+PMU-Based Statistical Detection of Fault Injection Attacks in Secure Boot
+
+Running Head
+N/A
+
+Abstract
+Secure SoCs rely on the BOOTROM as the fundamental root of trust. However, BOOTROM execution is highly vulnerable to physical fault injection (FI) attacks, such as precisely timed voltage or clock glitches, which can force the CPU to skip cryptographic signature verifications or corrupt key comparisons. Current countermeasures rely on expensive, per-SoC hardware analog sensors. This project proposes a software-only, statistical defense framework that leverages the ARM Performance Monitor Unit (PMU) which is present on all standard Cortex cores as a multivariate sensor array to detect fault injections algorithmically.
+
+Because glitch attacks disrupt the processor pipeline (causing anomalous cache misses, branch mispredictions, and instruction cycle variations), these PMU counter deviations form a detectable signature. This project will model clean BOOTROM execution as a multivariate Gaussian distribution and implement a Cumulative Sum (CUSUM) control chart algorithm to detect glitch-induced anomalies in real-time. The project will be executed in two phases: Phase 1 focuses on building the statistical model and proving the CUSUM mathematics using emulated ARM execution with scripted fault injection. Phase 2 involves porting the statistical model into highly optimized, deterministic, fixed-point C/Assembly firmware embedded directly into a BOOTROM architecture.
+
+Background & Importance: 
+Modern Secure SoCs rely on the BOOTROM as the fundamental root of trust. However, attackers use physical fault injection (FI), such as precisely timed voltage or clock glitches to perturb the CPU pipeline, forcing it to skip critical cryptographic signature verifications or corrupt key comparisons.  
+
+Where it will be used: 
+This will be used in the early-stage secure boot flow of embedded SoCs (such as TI’s automotive or industrial microcontrollers) to validate execution integrity before handing off control to the operating system.  
+
+Summary of Problem Statement: 
+Current mitigation strategies require dedicated, expensive analog hardware sensors per-SoC. There is a lack of generalizable, software-only detection mechanisms capable of sensing pipeline perturbations across standard ARM Cortex architectures without adding silicon cost.
+
+
+Available Solutions:   
+Hardware-based: Analog voltage-drop detectors and dedicated clock monitors.
+Software-based: Redundant execution (e.g., executing signature checks twice and comparing results) or random delay insertions.
+
+Shortcomings:   
+Hardware sensors increase silicon area and cost, and must be specifically calibrated for every new chip design.
+Naive software redundancy is easily bypassed by multi-glitch attacks (glitching both the primary check and the redundant check) and incurs heavy boot-latency penalties
+
+
+Proposed Work: 
+Repurpose the ARM Performance Monitor Unit (PMU), already present on ARM cortex cores as a multivariate statistical sensor array. Fault injection attacks physically disrupt the CPU pipeline, creating measurable anomalies in PMU telemetry: cycle count spikes, instruction count drops, cache miss rate increases, and branch misprediction surges. By modeling the nominal (clean boot) PMU distribution and applying statistical process control, we can detect glitches in real-time from within BOOTROM firmware itself. 
+
+Details of Development Work: 
+Build an ARM Cortex simulation environment with a plugin for fault injection (instruction skip via NOP substitution). Extract PMU telemetry across 500 clean boots to construct a multivariate Gaussian baseline and 10,000 glitched boots across 5 severity levels to characterize distribution shift.
+
+New Ideas on the Proposed Topic: 
+First application of Statistical Process Control to micro-architectural telemetry for fault injection defense, implementing a CUSUM log-likelihood detector on 5-dimensional PMU vectors at 10 BOOTROM checkpoints.
+
+
+Problem Statement and Objective: 
+The objective of this project is to develop and validate a software-only fault injection detection system that can be embedded directly into the firmware of ARM-based microcontrollers. By leveraging built-in performance counters (PMU) that exist on every ARM Cortex processor, we will build a statistical anomaly detection framework that identifies glitch attacks in real-time, without requiring any additional hardware sensors or costly silicon modifications.
+
+Phase 1 - Algorithm Development
+Build simulation environment with scripted fault injection capabilities.
+Collect PMU telemetry from 500 clean + 10,000 glitched boot sequences
+Design statistical detector (CUSUM) optimized for detection vs. false alarm tradeoff
+Derive formal detection bounds using Stein's Lemma
+
+Phase 2 - Production Implementation
+Port detector to optimized embedded C (fixed-point, no FPU)
+Integrate into BOOTROM firmware with TrustZone-M lockout response
+Benchmark: cycle overhead, detection latency, false alarm characterization
+Comparative analysis vs. redundant execution
+
+
+
+

@@ -152,13 +152,18 @@ static void stage_signature_verify(uint32_t cp_id) {
 
     /* Sub-stage B: public key load + modular reduction simulation */
     #ifndef GLITCH_ATTACK
-        /* Normal execution: full loop */
-        for (int i = 0; i < 300; i++) x ^= (x * 31337U) >> 8;
+        #define SUB_B_ITERS 300
     #else
-        /* GLITCH ATTACK: Skip ENTIRE sub-stage B */
-        /* Extreme fault: completely bypasses security check */
-        /* Creates ~300 cycle reduction (50% severity on sub_b) */
-    #endif 
+        /* GLITCH ATTACK: skip GLITCH_SKIP_PCT percent of the loop iterations
+         * (default 100 = bypass the whole sub-stage, no loop is emitted). */
+        #ifndef GLITCH_SKIP_PCT
+            #define GLITCH_SKIP_PCT 100
+        #endif
+        #define SUB_B_ITERS (300 * (100 - GLITCH_SKIP_PCT) / 100)
+    #endif
+    #if SUB_B_ITERS > 0
+    for (int i = 0; i < SUB_B_ITERS; i++) x ^= (x * 31337U) >> 8;
+    #endif
 
 
     t2 = systick_elapsed();
@@ -236,12 +241,18 @@ int main(void)
     if (cusum_update(&detector, cp2_features, 2)) {
         uart_println("\r\n!!! ATTACK DETECTED at CP2 !!!");
         uart_print("Mahalanobis distance exceeded threshold");
+        uart_print("\r\nALARM_FEATURES,");
+        uart_print_u32(cp2_features[0]); uart_putc(',');
+        uart_print_u32(cp2_features[1]); uart_putc(',');
+        uart_print_u32(cp2_features[2]);
         uart_println("\r\nHALTING BOOT - Security violation");
 
+#ifndef COLLECT_MODE
         /* Security response: halt and lockup */
         while (1) {
             /* In real system: erase keys, disable peripherals */
         }
+#endif
     }
 
     /* Stage 3: key derivation */

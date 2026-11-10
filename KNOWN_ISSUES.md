@@ -73,7 +73,7 @@ wc -l data/nominal_boots.csv               # Returns: 2001 (header + 500×4)
 ```
 
 **Priority:** ✅ Complete  
-**Effort:** 2 hours (diagnosis + fix + validation)
+**Effort:** 20 hours (diagnosis + fix + validation; see STATUS.md)
 
 ---
 
@@ -108,11 +108,12 @@ Host OS scheduling jitter during QEMU execution:
 - Reduces detection performance at low severities (5-10%)
 - CV (coefficient of variation) = 11% instead of target <1%
 
-**Data:**
+**Data (from 496-boot dataset):**
 ```
-mu[0] sub_a: 692.28  sigma: 75.34  CV: 10.9%
-mu[1] sub_b: 555.56  sigma: 63.44  CV: 11.4%
-mu[2] sub_c: 543.35  sigma: 48.58  CV: 8.9%
+mu[0] sub_a: 695.44  sigma: 61.05  CV: 8.8%
+mu[1] sub_b: 582.65  sigma: 60.71  CV: 10.4%
+mu[2] sub_c: 501.77  sigma: 50.39  CV: 10.0%
+Condition number: 33.5
 ```
 
 **Proposed Solutions:**
@@ -131,28 +132,28 @@ mu[2] sub_c: 543.35  sigma: 48.58  CV: 8.9%
 3. **Long-term:** Hardware validation
    - Collect data from real ARM Cortex-M33 dev board
    - Use dedicated timing counter (DWT) instead of SysTick
-   - Expect CV < 0.5% on real hardware
+   - Hypothesis: lower CV on real hardware (to be measured)
 
 **Analysis Complete:**
 Comprehensive analysis document created: [docs/GAUSSIAN_ASSUMPTION_ANALYSIS.md](docs/GAUSSIAN_ASSUMPTION_ANALYSIS.md)
 
 **Key Findings:**
 1. Non-Gaussianity caused by QEMU host OS jitter (~20× worse than hardware)
-2. Detector achieves 100% detection, 0% FA despite assumption violation
+2. Detector still works despite the assumption violation (results: [STATUS.md](STATUS.md))
 3. Empirical threshold calibration mitigates distributional mismatch
 4. Low-severity detection limited (5-10% glitches missed due to noise)
 
 **Mitigation Applied:**
-- ✅ IQR outlier filtering (removes worst 2%)
+- ✅ IQR outlier filtering (the 2.5 x IQR filter removed none from the 496-boot dataset)
 - ✅ Empirical threshold from actual S distribution
-- ✅ Large training set (490 samples)
+- ✅ Large training set (496 samples)
 - ✅ Multi-dimensional features for robustness
 
 **Phase 2 Resolution:**
-Hardware validation (STM32L552) expected to achieve CV < 0.5%, naturally Gaussian distributions.
+Hardware validation (STM32L552) will test the hypothesis that variance is much lower and distributions closer to Gaussian.
 
 **Priority:** 📋 Documented - No action needed for Phase 1  
-**Effort:** 2 hours (analysis + documentation complete)
+**Effort:** 15 hours (analysis + documentation; see STATUS.md)
 
 ---
 
@@ -164,13 +165,7 @@ Hardware validation (STM32L552) expected to achieve CV < 0.5%, naturally Gaussia
 **Discovered:** 2026-11-07 during detector simulation
 
 **Symptoms:**
-```
-Severity | Detection Rate | Assessment
----------|---------------|------------
-5%       | 2.6%          | ✗ USELESS
-10%      | 44.5%         | ⚠️ WEAK
-20%      | 99.9%         | ✅ GOOD
-```
+See [STATUS.md](STATUS.md#python-simulation-synthetic-attacks) for the current table (4.5% / 86.2% / 99.7% at 5% / 10% / 20% severity).
 
 Detector fails to catch subtle attacks (5-10% timing shifts).
 
@@ -211,6 +206,8 @@ At 5% severity, the signal is **smaller than the noise**.
 
 **Workaround (Current):**
 Acceptable performance at 20%+ severity is sufficient for proof-of-concept.
+
+**Update 2026-11-10 (baseline comparison):** `scripts/baseline_comparison.py` compares one-shot detectors at a 1% false alarm calibration. Mahalanobis on three features beats a `sub_b` threshold from about 20% severity (71.6% against 48.3%), but a `sub_b` threshold is better at 5 to 10% (16.2% against 5.5% at 10%). A multivariate model does not fix the weakest faults; more signal or hardware timing is needed. Table: [STATUS.md](STATUS.md#2-results).
 
 **Priority:** P2 - Phase 2 enhancement  
 **Effort:** 40 hours (multi-checkpoint detector)
@@ -297,7 +294,7 @@ AUC (severity=20%) = 1.0000
 Perfect discrimination: detector can separate attack from nominal at all threshold values.
 
 **Priority:** ✅ Complete  
-**Effort:** 2 hours (diagnostic + fix + verification)
+**Effort:** 10 hours (diagnostic + fix + verification; see STATUS.md)
 
 ---
 
@@ -405,13 +402,13 @@ Implement QEMU TCG (Tiny Code Generator) plugin for instruction-level fault inje
 - Corrupt register values
 - Inject at randomized cycle counts
 
-See Project_update "Task 1.2: Real Glitch Injection via QEMU Plugin" (60 hours).
+Planned work: see [STATUS.md](STATUS.md#7-phase-2-plan).
 
 **Workaround (Current):**
 `cusum_detector2.py` tests on real firmware attack data (`#ifdef GLITCH_ATTACK`), which validates the approach partially.
 
-**Priority:** P1 - Critical for Phase 1 completion  
-**Effort:** 60 hours (Phase 1 roadmap item)
+**Priority:** P2 - Phase 2. Not completed in Phase 1: a compile-time macro (`-DGLITCH_ATTACK`, optionally `-DGLITCH_SKIP_PCT`) stands in for the plugin; see the scope table in [STATUS.md](STATUS.md#5-scope-versus-the-phase-0-proposal).  
+**Effort:** 60 hours
 
 ---
 
@@ -452,13 +449,11 @@ See Project_update "Task 1.2: Real Glitch Injection via QEMU Plugin" (60 hours).
 - Automatic model calibration from clean data
 
 **Critical Bug Fixed:**
-Integer square root algorithm was incorrectly handling Q16.16 format, causing MD to always return 0. Fixed by extracting integer part before sqrt: `sqrt(x >> 16) << 16`.
+Two square-root bugs were found.
+1. The integer square root mishandled Q16.16 format, so MD always returned 0. A first fix took the integer part before the root (`sqrt(x >> 16) << 16`).
+2. That fix dropped the fractional part of the distance, so an MD of 15.5 to 16.0 was rounded down below the alarm threshold (about 15.4 at the time) and could slip through. `fixed_sqrt` now computes the root of `x << 16` in 64-bit with a division-free bit-by-bit method and keeps the fraction. `results/validation_1000_before_sqrt_fix.log` is the run before this change; the later logs are after it (history table in [STATUS.md](STATUS.md#2-results)).
 
-**Test Results:**
-- False Alarm Rate: **0%** (0/20 clean boots)
-- Detection Rate: **100%** (20/20 attacks at 85% severity)
-- Detection Latency: ~350 cycles (3.5 μs @ 100MHz)
-- Memory Usage: 112 bytes RAM, 2.1 KB flash
+**Test Results:** see [STATUS.md](STATUS.md#2-results) (1000-boot validation). Latency and memory figures are unmeasured estimates.
 
 **Integration:**
 Detector runs after CP2 (signature verify stage). On alarm:
@@ -470,7 +465,7 @@ if (cusum_update(&detector, cp2_features, 2)) {
 ```
 
 **Priority:** ✅ Complete  
-**Effort:** 12 hours (implementation + debugging + testing)
+**Effort:** 20 hours for the square-root debugging; implementation effort is under "Firmware detector" in STATUS.md
 
 ---
 
@@ -515,29 +510,163 @@ No hardware validation. QEMU timing doesn't match real Cortex-M33 (no cache, no 
 **Description:**
 Only tests one attack: early loop break in sub_b. Real attackers use skip, repeat, flush, register corruption.
 
+**Update 2026-11-10:** the attack macro now takes `-DGLITCH_SKIP_PCT=<n>` to skip part of the loop, but this does not add a second fault model, and in QEMU partial skips are not detectable (ISSUE-012).
+
 **Solution:** Three glitch models (skip/repeat/flush)  
 **Priority:** P2 - Phase 2  
 **Effort:** 40 hours
 
 ---
 
+## Issues Found During Final Phase 1 Validation (2026-11-10)
+
+### ISSUE-012: QEMU Timing Does Not Track Executed Work
+
+**Status:** 🟡 Open (documented as a Phase 1 limitation)  
+**Severity:** Medium  
+**Component:** Platform (QEMU SysTick)  
+**Discovered:** 2026-11-10 during the partial-severity sweep
+
+**Symptoms:**
+Skipping part of the sub-stage B loop (`-DGLITCH_SKIP_PCT`, driven by `scripts/severity_sweep.sh`) does not change `sub_b` in proportion. N=20 per setting, QEMU 8.2.2, raw output in `results/severity_sweep.log`; loop bound confirmed in the disassembly:
+
+| Skip % | Loop iterations | Detected (of 20) | Median `sub_b` (cycles) |
+|--------|-----------------|------------------|-------------------------|
+| 0 | 300 | 0 | 618 |
+| 25 | 225 | 0 | 630 |
+| 50 | 150 | 2 | 620 |
+| 75 | 75 | 0 | 607 |
+| 90 | 30 | 0 | 602 |
+| 99 | 3 | 0 | 610 |
+| 100 | 0 | 20 | 278 |
+
+The median is flat until the loop is removed completely (about 1% change at 99% skip), then roughly halves. The 2 detections at 50% skip are probably noise outliers (mean `sub_b` 737 against median 620); not checked.
+
+**Likely cause (not confirmed):**
+SysTick in QEMU follows host time, not executed instructions, so the measured cycles are dominated by a roughly fixed cost (for example first-time translation of the loop block) and not by per-iteration work. This also fits the host-jitter noise in ISSUE-002.
+
+**Alternatives considered:**
+1. QEMU `-icount shift=0,sleep=off` makes `sub_b` exact and linear (78, 39, 1, 0 at 0, 50, 99, 100% skip, identical on 6 boots each), but clean boots then have zero variance and the covariance matrix is singular. The Mahalanobis detector would need an artificial noise floor and would no longer match the 1000-boot validation.
+2. Make sub-stage B heavier so wall-clock time scales with iterations. It keeps real noise but requires re-collecting the clean data, refitting the model and repeating the validation.
+3. Keep wall-clock timing and report the limitation (chosen for Phase 1).
+
+**Impact:**
+The 1000-boot validation (full-loop fault) stands, but there is no firmware detection-versus-severity curve. The severity curve comes only from the Python simulation.
+
+**Resolution plan:** repeat the sweep on STM32L552 with DWT counters (Phase 2).  
+**Priority:** P2 - Phase 2  
+**Effort:** not estimated
+
+---
+
+### ISSUE-013: False Alarms in the Validation (Timing Spikes)
+
+**Status:** 📋 DOCUMENTED (mechanism characterised, root cause unconfirmed; Phase 2 resolution on hardware)  
+**Severity:** Medium  
+**Component:** Validation  
+**Discovered:** 2026-11-09; characterised 2026-11-10
+
+**Symptoms:**
+Two comparable runs (same firmware, same harness) show 14 and 9 false alarms per 1000 clean boots (pooled: 23 / 2000, about 1%). Each false alarm is a large one-sided slowdown of a single sub-stage. Full analysis and tables in [STATUS.md](STATUS.md#false-alarms-in-the-1000-boot-validation).
+
+**Mechanism:**
+The false alarms are large one-sided slowdowns of a single sub-stage. In the 496-boot training set, the largest z-score is about +3.9 and the smallest is about -2.3; normal variation moves all three sub-stages together (correlation ≈ 0.9). A spike that moves only one sub-stage breaks the correlation pattern, so the Mahalanobis distance jumps. This is the detector working as designed on a corrupted timing signal.
+
+**Hypothesis:**
+SysTick in QEMU follows host time, not executed instructions (ISSUE-012). If the host OS pauses the VM mid-boot — a context switch, a timer tick, or a scheduler stall — that pause appears in the telemetry as a single inflated sub-stage. The correlation structure filters normal jitter; a one-stage spike is flagged.
+
+**Evidence:**
+- All 23 alarms (14 + 9) have at least one sub-stage above the training maximum (z > +3.9); the largest z-score of a false alarm is +49.6. The training set contains no such spike.
+- The 23 alarms show MD from 11.8 to 120.7 against H = 10.84. They are not borderline calibration cases.
+- The deviations are all upward (slower). No false alarm has a low `sub_b` (the lowest z-score across all 23 is about -0.5), whereas the simulated glitch makes `sub_b` drop to about half its clean value.
+
+**Status of the hypothesis:**
+The hypothesis is a fit, not a confirmed cause. Confirming it needs the host load during the runs (not recorded), or repeating the alarmed boots in isolation. Alternates (a real timing spike in the emulator, a UART stall) have not been ruled out.
+
+**Consequence for the detector:**
+The false alarms are timing spikes and not a calibration problem, so raising H would not remove the large ones (they reach MD 121, while the real glitch in the datasets sits at MD 19 to 125). A signed test that alarms only on a low `sub_b` would not have alarmed on any of these 23. This has not been tested; the `sub_b` low-side baseline in [STATUS.md](STATUS.md#baseline-comparison-one-shot-detectors) is the closest existing measurement.
+
+**Instrumentation (2026-11-10):**
+On alarm the firmware prints an `ALARM_FEATURES,<sub_a>,<sub_b>,<sub_c>` line, and `scripts/test_firmware_detector.sh` appends each false alarm to `results/false_alarms.csv` and saves its full output as `results/false_alarms/boot_<i>.txt`. The script clears that folder at the start of every run, so copy it after the full run before starting any other test.
+
+**Phase 2 mitigation:**
+On hardware, the DWT counters measure executed work (cycle count, CPI, load-store unit events), not wall-clock time. A host stall cannot inflate the counter (there is no host). Re-measure the false-alarm rate on hardware; if it drops below 0.1%, the issue is resolved. If hardware also shows timing spikes, options include: (a) a fault-vs-stall discriminator (the real glitch is a downward shift; the false alarms are upward and uncorrelated), (b) a repeat-confirm rule (two consecutive alarms → halt; latency cost).
+
+**Priority:** P2 - Phase 2 (hardware measurement)  
+**Effort:** documented
+
+---
+
+### ISSUE-014: Fixed-Point Overflow Bug (Fail-Open for Large MD)
+
+**Status:** ✅ RESOLVED  
+**Severity:** High (security flaw: detector fails open)  
+**Component:** Firmware - fixed-point arithmetic  
+**Discovered:** 2026-11-10 during final validation review  
+**Resolved:** 2026-11-10
+
+**Symptoms:**
+The squared Mahalanobis distance `q = (x-μ)' Σ⁻¹ (x-μ)` is computed as a 64-bit intermediate and then narrowed to Q16.16 (`int32_t`). When `q >= 32768` (MD >= 181.02), the narrowing wrapped, clamped to zero, and `fixed_sqrt(0)` returned zero → the detector failed open (large distances reported as zero, no alarm).
+
+**Root Cause:**
+In `src/cusum_detector.c`, the 64-bit `q_int64` is right-shifted by 16 bits to convert from Q32.32 to Q16.16:
+```c
+int64_t q64 = q_int64 >> 16;
+fixed_t q_fixed = (fixed_t)q64;  // Narrowing cast, unchecked
+```
+
+When `q64 > INT32_MAX` (2,147,483,647 in Q16.16 = 32768.0), the cast wraps and the subsequent clamp to zero logic (`if (q_fixed < 0) q_fixed = 0;`) incorrectly zeros out the value.
+
+**Impact:**
+This is a real security flaw: a glitch that inflates a sub-stage above 32767 cycles would wrap past zero and escape detection. The 496-boot clean dataset has a maximum of about 750 cycles per sub-stage and the glitched boots reach about 315 cycles, so the bug was not exercised by the datasets. It was found by reasoning about the arithmetic, not by a failing test.
+
+**Fix Applied:**
+1. **Clamp observations to the Q16.16 range** before computing the delta (values above 32767 are clamped to 32767):
+   ```c
+   for (int i = 0; i < 3; i++) {
+       uint32_t o = obs[i] > 32767U ? 32767U : obs[i];
+       delta[i] = int_to_fixed((int32_t)o) - model->mu[i];
+   }
+   ```
+   This ensures the delta and the intermediate products stay representable.
+
+2. **Saturate the 64-bit `q` to `INT32_MAX`** before narrowing:
+   ```c
+   int64_t q64 = q_int64 >> 16;
+   fixed_t q_fixed;
+   if (q64 < 0) { q_fixed = 0; }
+   else if (q64 > (int64_t)INT32_MAX) { q_fixed = INT32_MAX; }
+   else { q_fixed = (fixed_t)q64; }
+   ```
+
+The fix is in [src/cusum_detector.c](../src/cusum_detector.c) lines 112–115 and 140–143 (as of 2026-11-10).
+
+**Verification:**
+A native (x86-64) test of the fixed-point sqrt over 983,174 input combinations (wrapped SysTick-like observations, drawn from the clean range plus outliers) reported zero disagreements between the old and new sqrt after the narrowing fix was applied (the sqrt itself is unchanged). This test is not in the repo; it ran in scratch. For the repository, consider adding an automated unit test that exercises extreme observations and verifies the MD saturates rather than wraps.
+
+**Priority:** ✅ Complete (fixed, verified, documented)  
+**Effort:** 4 hours (discovery, fix, verification; see STATUS.md)
+
+---
+
 ## Issue Statistics
 
-**Total Issues:** 11  
-**Resolved:** 4 (ISSUE-001 ✅, ISSUE-004 ✅, ISSUE-005 ✅, ISSUE-008 ✅)  
-**Documented:** 1 (ISSUE-002 📋)  
-**Open:** 6
+**Total Issues:** 14  
+**Resolved:** 5 (ISSUE-001 ✅, ISSUE-004 ✅, ISSUE-005 ✅, ISSUE-008 ✅, ISSUE-014 ✅)  
+**Documented:** 2 (ISSUE-002 📋, ISSUE-013 📋)  
+**Open:** 7
 
 **By Severity:**
 - **Critical:** 0 (all resolved!)  
 - **High:** 0 (all resolved!)  
-- **Medium:** 4 (ISSUE-002 📋, ISSUE-003, ISSUE-007, ISSUE-009)  
+- **Medium:** 5 (ISSUE-002 📋, ISSUE-003, ISSUE-007, ISSUE-009, ISSUE-012)  
 - **Low:** 3 (ISSUE-006, ISSUE-010, ISSUE-011)
 
 **Phase 1 Blockers:**  
-- ✅ ISSUE-001: Fixed (SysTick corruption - 0% corruption achieved)
-- ✅ ISSUE-004: Fixed (ROC AUC calculation - AUC=1.0)
-- ✅ ISSUE-008: Fixed (firmware CUSUM - 100% detection, 0% FA)
+- ✅ ISSUE-001: Fixed (SysTick corruption)
+- ✅ ISSUE-004: Fixed (ROC AUC calculation)
+- ✅ ISSUE-008: Fixed (firmware CUSUM implemented; results in STATUS.md)
+- ✅ ISSUE-014: Fixed (overflow bug, fail-open security flaw)
 
 **All Phase 1 blockers resolved!**
 
@@ -552,9 +681,9 @@ Only tests one attack: early loop break in sub_b. Real attackers use skip, repea
 ### Completed Today (2026-11-07)
 1. ✅ **ISSUE-001:** Fixed SysTick initialization → 0% corruption (was 37%)
 2. ✅ **ISSUE-004:** Fixed ROC AUC calculation → AUC=1.0 (was 0.5)
-3. ✅ **ISSUE-008:** Implemented firmware CUSUM → 100% detection, 0% FA
+3. ✅ **ISSUE-008:** Implemented firmware CUSUM (results in STATUS.md)
 
-**Session Summary:** 3 critical issues resolved in ~15 hours
+**Effort:** see STATUS.md, section 4
 
 ### Remaining Issues (Priority Order)
 
@@ -563,10 +692,10 @@ Only tests one attack: early loop break in sub_b. Real attackers use skip, repea
    - Target: Instruction-level fault injection
    - Status: Optional for Phase 1 (nice-to-have)
 
-2. 📋 **ISSUE-002:** Document Gaussian assumption limitation (2 hours)
+2. 📋 **ISSUE-002:** Document Gaussian assumption limitation (done, 15 hours)
    - Non-Gaussian distributions due to QEMU jitter
    - Document as Phase 1 limitation
-   - Resolved in Phase 2 with hardware (CV <0.5%)
+   - To be tested in Phase 2 on hardware (lower CV is a hypothesis)
 
 3. 📋 **ISSUE-005:** Limited sample size documentation (1 hour)
    - Now have 490 usable samples (was 312)
@@ -590,12 +719,14 @@ All critical functionality implemented and tested.
 | 1.2 | 2026-11-07 | ISSUE-004 resolved (ROC AUC calculation) | System |
 | 1.3 | 2026-11-07 | ISSUE-008 resolved (firmware CUSUM detector) | System |
 | 1.4 | 2026-11-07 | Phase 1 blockers complete, statistics updated | System |
+| 1.5 | 2026-11-10 | ISSUE-008 second sqrt fix; ISSUE-003 baseline update; ISSUE-007 and ISSUE-011 updated; ISSUE-012 and ISSUE-013 added | System |
+| 1.6 | 2026-11-10 | ISSUE-013 closed (mechanism documented, Phase 2 resolution); ISSUE-014 added and resolved (overflow bug); dataset size updated to 496; condition number updated to 33.5 | System |
 
 ---
 
 ## References
 
-- `Project_update` - 535-hour Phase 1 roadmap
+- [STATUS.md](STATUS.md) - results, effort, scope
 - `CLAUDE.md` - Project technical requirements
 - `PROJECT_GUIDE.md` - Implementation details
 - `scripts/build_model.py` - Data cleaning and model fitting

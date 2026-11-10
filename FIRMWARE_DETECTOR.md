@@ -8,7 +8,7 @@
 
 Real-time fault injection detector running directly in bootrom firmware. Detects timing anomalies caused by voltage/clock glitch attacks using CUSUM (Cumulative Sum) sequential change detection.
 
-**Key Achievement:** The detector runs **during boot**, not after. Attack detected in <1ms, not offline.
+**Key point:** The detector runs **during boot**, not offline. Results are in [STATUS.md](STATUS.md).
 
 ## Architecture
 
@@ -31,7 +31,7 @@ Boot Stage → PMU Checkpoint → Feature Vector → CUSUM Update → Alarm?
 - API: `cusum_init()`, `cusum_update()`, `mahalanobis_distance()`
 
 **`src/cusum_detector.c`** - Implementation
-- Fixed-point sqrt (binary search, no libgcc)
+- Fixed-point sqrt (division-free bit-by-bit 64-bit integer square root; keeps the fractional part; no libgcc)
 - Mahalanobis distance: `MD = sqrt((x-μ)' Σ⁻¹ (x-μ))`
 - CUSUM update: `S = max(0, S + MD - k)`
 - Alarm check: `S > H`
@@ -57,8 +57,12 @@ Uses Q16.16 format (signed 32-bit):
 ```c
 fixed_t a = FLOAT_TO_FIXED(1.5);    // 98304 = 0x00018000
 fixed_t b = FLOAT_TO_FIXED(2.0);    // 131072 = 0x00020000
-fixed_t c = fixed_mul(a, b);         // 3.0
+// There is no multiply helper: products are widened to 64 bits and shifted
+fixed_t c = (fixed_t)(((int64_t)a * (int64_t)b) >> 16);  // 196608 = 0x00030000 = 3.0
 ```
+
+**Overflow fix (2026-11-10):**
+The squared Mahalanobis distance `q = (x-μ)' Σ⁻¹ (x-μ)` is computed as a 64-bit intermediate and then narrowed to Q16.16. When `q >= 32768` (MD >= 181.02), the narrowing wrapped and the detector failed open (large distances reported as zero). The fix: clamp observations to 32767 before computing the delta, and saturate the 64-bit `q` to `INT32_MAX` before narrowing. See [KNOWN_ISSUES.md](KNOWN_ISSUES.md) ISSUE-014 and [STATUS.md](STATUS.md#resource-footprint-measured-and-latency-not-yet-measured) for details.
 
 ## Model Calibration
 
@@ -74,15 +78,7 @@ fixed_t c = fixed_mul(a, b);         // 3.0
    python scripts/calibrate_firmware.py
    ```
 
-3. **Embed parameters** in `src/cusum_detector.c`:
-   ```c
-   const cusum_model_t CUSUM_MODEL = {
-       .mu = {...},          // Mean from training data
-       .cov_inv = {...},     // Inverse covariance
-       .k_slack = 1.528,     // From Python calibration
-       .H = 13.844,          // H_99: 1% FA rate
-   };
-   ```
+3. **Embed parameters:** paste the C code printed by `calibrate_firmware.py` into `CUSUM_MODEL` in `src/cusum_detector.c`. That constant is the only place the model values are recorded.
 
 4. **Rebuild** firmware:
    ```bash
@@ -91,12 +87,16 @@ fixed_t c = fixed_mul(a, b);         // 3.0
 
 ### Parameters
 
-| Parameter | Value | Meaning |
-|-----------|-------|---------|
-| **μ** | [691, 560, 539] | Mean cycle counts [sub_a, sub_b, sub_c] |
-| **Σ⁻¹** | 3×3 matrix | Inverse covariance (from training) |
-| **k_slack** | 1.528 | CUSUM slack (reduces noise sensitivity) |
-| **H_99** | 13.844 | Alarm threshold (1% false alarm rate) |
+| Parameter | Meaning |
+|-----------|---------|
+| **μ** | Mean cycle counts [sub_a, sub_b, sub_c] |
+| **Σ⁻¹** | Inverse covariance from clean boots |
+| **k_slack** | CUSUM slack. Set to 0 by `calibrate_firmware.py` because the detector runs once per boot. |
+| **H** | Alarm threshold. Set to 1.25 x the largest clean-boot Mahalanobis distance. With k_slack = 0 the alarm fires when MD > H. |
+
+Values: see `CUSUM_MODEL` in `src/cusum_detector.c`.
+
+**One-shot operation.** The firmware calls `cusum_update` once per boot with S starting at 0, so it is a threshold test on Mahalanobis distance, not a sequential detector. The Python pipeline (`build_model.py`) runs CUSUM over 20-boot windows and calibrates a different `k` and `H` for that setting; those values are not used in firmware. Sequential accumulation across checkpoints is Phase 2 work.
 
 **Note:** Parameters must be recalibrated whenever firmware changes (timing shifts).
 
@@ -122,9 +122,8 @@ fixed_t c = fixed_mul(a, b);         // 3.0
 ```
 
 **Why CUSUM?**
-- Accumulates evidence over time (robust to single-sample noise)
-- Slack parameter `k` filters normal variance
-- Optimal for detecting persistent shifts (glitch causes sustained timing change)
+- The CUSUM update `S = max(0, S + MD - k)` allows sequential accumulation of evidence over multiple checkpoints. The firmware implementation calls it once per boot (S starts at 0, k = 0), so it acts as a threshold test on Mahalanobis distance; sequential accumulation is Phase 2 work.
+- Slack parameter `k` filters normal variance (set to 0 for one-shot operation).
 
 **Mahalanobis Distance:**
 - Measures "how many standard deviations from mean"
@@ -136,8 +135,8 @@ fixed_t c = fixed_mul(a, b);         // 3.0
 ### Test Suite
 
 **`scripts/test_firmware_detector.sh`** - Automated validation
-- 20 clean boots → expect 0-1 false alarms (<5%)
-- 20 glitch attacks → expect 18+ detections (>90%)
+- Runs N clean boots (expect at most 5% false alarms) and N glitched boots (expect at least 90% detections). Default N is 20; set `N=1000` for the full validation.
+- Results: [STATUS.md](STATUS.md#2-results).
 
 ```bash
 ./scripts/test_firmware_detector.sh
@@ -160,34 +159,28 @@ timeout 1 make run | grep "ATTACK DETECTED" && echo "Detected!" || echo "Missed"
 
 ## Performance
 
-### Memory Usage
+### Memory Usage (measured)
+
+From `arm-none-eabi-size app.elf` (2026-11-10, after the overflow fix):
 
 **Flash (code):**
-- `cusum_detector.c`: ~2 KB
-- Model parameters: 80 bytes (const data)
-- Total: ~2.1 KB
+- `cusum_detector.o` text section: 1060 bytes
+- Whole firmware text: 3152 bytes
 
 **RAM (runtime):**
-- `cusum_state_t`: 12 bytes
-- Stack for computation: ~100 bytes
-- Total: ~112 bytes
+- BSS (detector state): 64 bytes
 
-**Very lightweight!** <0.5% of typical Cortex-M33 resources.
+Earlier notes cited ~968 bytes for the detector and ~3060 bytes for the firmware, likely measured before the overflow fix.
 
-### Execution Time
+### Execution Time (not yet measured)
 
-**Per checkpoint:**
-- Mahalanobis distance: ~300 cycles (matrix multiply + sqrt)
-- CUSUM update: ~50 cycles (add, max, compare)
-- Total: **~350 cycles** ≈ 3.5 μs @ 100 MHz
-
-**Latency:** Attack detected within **1 ms** of occurring.
+**Latency:** detection runs once, right after checkpoint 2. Measure it with SysTick around `cusum_update` and add to a later revision. Earlier estimate (~350 cycles) is unverified.
 
 ## Current Limitations (Phase 1)
 
 1. **QEMU timing variance** (11% CV)
    - Host OS jitter causes high noise
-   - Real hardware: <0.5% CV
+   - Real hardware: expected to be lower (hypothesis, not yet measured)
    - Detection still works, but false alarm rate higher
 
 2. **Single checkpoint** (CP2 only)
@@ -219,7 +212,7 @@ timeout 1 make run | grep "ATTACK DETECTED" && echo "Detected!" || echo "Missed"
    };
    ```
 
-2. **Recalibrate model** on hardware data (expect CV < 0.5%)
+2. **Recalibrate model** on hardware data (and measure the real CV)
 
 3. **Debugger-based fault injection** for testing
 
@@ -255,6 +248,7 @@ timeout 1 make run | grep "ATTACK DETECTED" && echo "Detected!" || echo "Missed"
 
 ## See Also
 
-- [CLAUDE.md](CLAUDE.md) - Project overview and development guide
+- [CLAUDE.md](../CLAUDE.md) - Project overview and development guide
 - [KNOWN_ISSUES.md](KNOWN_ISSUES.md) - Issue tracking
+- [STATUS.md](STATUS.md) - Results, effort, scope
 - [PROJECT_GUIDE.md](PROJECT_GUIDE.md) - Detailed implementation walkthrough

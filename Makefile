@@ -48,10 +48,11 @@ collect: $(TARGET)
 
 # --- Attack Simulation Targets ---
 
-# Build the application with the GLITCH_ATTACK macro defined
-app_attack.elf: $(OBJS)
-	$(CC) $(CFLAGS) -DGLITCH_ATTACK -c $(SRC_DIR)/main.c -o $(SRC_DIR)/main.o
-	$(CC) $(CFLAGS) $(LDFLAGS) $(SRC_DIR)/startup.o $(SRC_DIR)/main.o -o $@
+# Attack build for data collection: glitch on, detector halt off so the
+# telemetry block is still printed. Compiled straight from sources so it
+# never overwrites the objects used by the normal build.
+app_attack.elf: $(SRCS)
+	$(CC) $(CFLAGS) -DGLITCH_ATTACK -DCOLLECT_MODE $(LDFLAGS) $^ -o $@
 
 # Convenience target to collect 50 boots under attack
 collect-attack: app_attack.elf

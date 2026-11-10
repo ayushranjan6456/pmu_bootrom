@@ -91,14 +91,32 @@ print(f"\nCorrelation matrix:")
 for i in range(3):
     print(f"  [{corr[i,0]:.3f}  {corr[i,1]:.3f}  {corr[i,2]:.3f}]")
 
-# Use existing CUSUM parameters (from Python model)
-# These were calibrated on similar data
-k_slack = 1.527768
-H_99 = 13.844297
+# The firmware calls cusum_update once per boot (S starts at 0), so it is a
+# one-shot threshold test on Mahalanobis distance. The sequential k/H from
+# build_model.py (20-boot windows) do not apply. With k = 0, S = MD and the
+# alarm fires when MD > H.
+d = X - mu
+md_train = np.sqrt(np.einsum('ij,jk,ik->i', d, cov_inv, d))
+MARGIN = 1.25
+k_slack = 0.0
+H_99 = MARGIN * md_train.max()
 
-print(f"\nCUSUM parameters (from prior calibration):")
+print(f"\nOne-shot threshold (k = 0, H = {MARGIN} x max clean MD):")
+print(f"  clean MD: p50={np.median(md_train):.2f}  p99={np.percentile(md_train, 99):.2f}  max={md_train.max():.2f}")
 print(f"  k_slack = {k_slack:.6f}")
-print(f"  H_99    = {H_99:.6f}")
+print(f"  H       = {H_99:.6f}")
+
+try:
+    atk = pd.read_csv('data/attack_boots.csv')
+    atk = atk[atk['cp'] == 2]
+    da = atk[['sub_a', 'sub_b', 'sub_c']].values - mu
+    md_atk = np.sqrt(np.einsum('ij,jk,ik->i', da, cov_inv, da))
+    print(f"  attack MD ({len(md_atk)} boots): min={md_atk.min():.2f}  p50={np.median(md_atk):.2f}")
+    print(f"  attack boots above H: {(md_atk > H_99).sum()}/{len(md_atk)}")
+    if md_atk.min() <= H_99:
+        print("  WARNING: some attack boots fall below H")
+except FileNotFoundError:
+    print("  (data/attack_boots.csv not found, attack separation not checked)")
 
 # Generate C code
 print("\n" + "="*70)
@@ -122,9 +140,10 @@ for i in range(3):
 print("""    },
 
     /* CUSUM parameters */
-    .k_slack = FLOAT_TO_FIXED(1.527768),   /* Slack reduces noise false alarms */
-    .H       = FLOAT_TO_FIXED(13.844297),  /* H_99: 1% false alarm rate */
-};""")
+""")
+print(f"    .k_slack = FLOAT_TO_FIXED({k_slack:.6f}),   /* one-shot test: S = MD */")
+print(f"    .H       = FLOAT_TO_FIXED({H_99:.6f}),  /* {MARGIN} x max clean MD */")
+print("};")
 
 print("\n" + "="*70)
 print(f"✓ Calibration complete! Model ready for embedding.")
