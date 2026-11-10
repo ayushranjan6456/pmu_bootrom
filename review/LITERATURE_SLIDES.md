@@ -6,11 +6,11 @@
 
 ---
 
-## Important Notes on Survey Quality
+## Author notes (do not share or present)
 
 Before using these slides, be aware of issues in `COMPREHENSIVE_LITERATURE_SURVEY.md`:
 
-- **Reference list (Section 8):** Author names are wrong for 16 of the 20 papers. The correct names (from `papers_list.csv`) are used in these slides.
+- **Reference list (Section 8):** Author names are wrong for most of the 20 papers. The correct names (from `papers_list.csv`) are used in these slides.
 - **Missing papers:**
   - Paper 19 (Luo, Luo, Fei 2016) is a ring-oscillator clock-glitch detector, directly relevant prior work. The survey says "details incomplete".
   - Paper 4 (Kaur et al. 2020) is a general review with no detection numbers (background only).
@@ -83,8 +83,8 @@ Boot-time security checks are successfully attacked on commercial devices:
 
 **Title:** Gap Analysis and Project Scope
 
-**Gap identified (within the 20 papers surveyed):**
-- No prior work uses **statistical sequential detection** on **on-chip timing telemetry** inside a boot ROM, with an implementation small enough for ROM deployment
+**Gap identified (within the 20 papers surveyed; the firmware itself is a one-shot threshold, sequential accumulation is Phase 2):**
+- No prior work uses **statistical detection** (CUSUM-style, sequential in the Python simulation, one-shot in the firmware) on **on-chip timing telemetry** inside a boot ROM, with an implementation small enough for ROM deployment
 
 **Honesty note:**
 - This novelty claim holds within the surveyed papers
@@ -97,9 +97,9 @@ Boot-time security checks are successfully attacked on commercial devices:
 
 **Delivered in Phase 1:**
 - Python design → C firmware port
-- Embedded detector: 3,060 bytes total firmware, 968 bytes detector code (measured via `arm-none-eabi-size`)
+- Embedded detector: 3,152 bytes total firmware, 1,060 bytes detector code (measured via `arm-none-eabi-size`)
 - Validation: 1,000 + 1,000 boots
-  - ≈1% false alarms (14/1,000)
+  - 14/1,000 false alarms in the final run (1.4%); about 1% pooled over two runs (23/2,000)
   - 100% detection of large simulated fault (1,000/1,000)
   - Details in `STATUS.md`
 
@@ -140,7 +140,7 @@ Boot-time security checks are successfully attacked on commercial devices:
 ## Likely Panel Questions on Literature
 
 ### Q1: "Is this novel?"
-**A:** Within the 20 papers surveyed, yes — no prior work combines statistical sequential detection with on-chip timing telemetry in a boot ROM. However, the wider prior-art search (across CUSUM applications, PMU-based detection, formal bounds) is still to be done.
+**A:** Within the 20 papers surveyed, yes — no prior work combines statistical detection (CUSUM-style) with on-chip timing telemetry in a boot ROM; our firmware is a one-shot threshold and sequential accumulation is Phase 2. However, the wider prior-art search (across CUSUM applications, PMU-based detection, formal bounds) is still to be done.
 
 ### Q2: "Why not use a hardware sensor?"
 **A:** Silicon cost and platform-specific calibration. Hardware sensors (like ring oscillators) need FPGA/ASIC primitives and per-chip tuning. Our approach needs only a firmware update, trading off detection latency and generality for deployment flexibility.
@@ -152,7 +152,7 @@ Boot-time security checks are successfully attacked on commercial devices:
 **A:** The survey's evidence for simulation validity is RTL, gate-level, and ARMORY simulation — not QEMU. Our own severity sweep found that QEMU's SysTick doesn't follow executed work (it tracks wall-clock time). That's why hardware counters (DWT) are deferred to Phase 2.
 
 ### Q5: "What about the 1% false alarms?"
-**A:** The 14/1,000 false alarms (1.4%, pooled ≈1.15%) are attributed to probable QEMU host timing stalls — single or double sub-stage spikes inconsistent with the fault model. Phase 2 will use DWT cycle counters on STM32L552 hardware, which count executed instructions rather than wall-clock time. See `KNOWN_ISSUES.md` ISSUE-013.
+**A:** The false alarms (14/1,000 in the final run, 1.4%; 23/2,000 pooled, about 1%) are attributed to probable QEMU host timing stalls — single or double sub-stage spikes inconsistent with the fault model. Phase 2 will use DWT cycle counters on STM32L552 hardware, which count executed instructions rather than wall-clock time. See `KNOWN_ISSUES.md` ISSUE-013.
 
 ---
 

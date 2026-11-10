@@ -147,14 +147,14 @@ Values: see `CUSUM_MODEL` in `src/cusum_detector.c`.
 **Test clean boot:**
 ```bash
 make clean && make all
-timeout 1 make run | grep "ATTACK DETECTED" || echo "Clean (no alarm)"
+timeout 1 make run </dev/null | grep "ATTACK DETECTED" || echo "Clean (no alarm)"
 ```
 
 **Test glitch attack:**
 ```bash
 make clean
 make CFLAGS="-mcpu=cortex-m33 -mthumb -O0 -g -Wall -fno-builtin -DGLITCH_ATTACK" app.elf
-timeout 1 make run | grep "ATTACK DETECTED" && echo "Detected!" || echo "Missed"
+timeout 1 make run </dev/null | grep "ATTACK DETECTED" && echo "Detected!" || echo "Missed"
 ```
 
 ## Performance
@@ -170,7 +170,7 @@ From `arm-none-eabi-size app.elf` (2026-11-10, after the overflow fix):
 **RAM (runtime):**
 - BSS (detector state): 64 bytes
 
-Earlier notes cited ~968 bytes for the detector and ~3060 bytes for the firmware, likely measured before the overflow fix.
+Earlier notes cited ~968 bytes for the detector and ~3060 bytes for the firmware. Those figures could not be reproduced: rebuilding commit 4b019e3 (before the overflow fix) gives 1,784 bytes for the detector object.
 
 ### Execution Time (not yet measured)
 
@@ -178,10 +178,10 @@ Earlier notes cited ~968 bytes for the detector and ~3060 bytes for the firmware
 
 ## Current Limitations (Phase 1)
 
-1. **QEMU timing variance** (11% CV)
+1. **QEMU timing variance** (CV about 9 to 10%, see the Gaussian analysis)
    - Host OS jitter causes high noise
    - Real hardware: expected to be lower (hypothesis, not yet measured)
-   - Detection still works, but false alarm rate higher
+   - Detection of the large simulated fault still works; about 1% of clean boots false-alarm
 
 2. **Single checkpoint** (CP2 only)
    - Only monitors signature verify stage
@@ -228,8 +228,8 @@ Earlier notes cited ~968 bytes for the detector and ~3060 bytes for the firmware
 - **Fix:** Run `python scripts/calibrate_firmware.py`, update parameters, rebuild
 
 ### "False alarms on clean boots"
-- **Cause:** Threshold too low, or high QEMU jitter
-- **Fix:** Increase H threshold, or collect more training data
+- **Cause:** Usually a timing spike from a host pause (ISSUE-013), not a threshold problem
+- **Fix:** Re-run the boot. Raising H does not remove large spikes; see STATUS.md
 
 ### "Linker error: undefined reference to __aeabi_ldivmod"
 - **Cause:** Code uses 64-bit division (no libgcc)
@@ -248,7 +248,6 @@ Earlier notes cited ~968 bytes for the detector and ~3060 bytes for the firmware
 
 ## See Also
 
-- [CLAUDE.md](../CLAUDE.md) - Project overview and development guide
 - [KNOWN_ISSUES.md](KNOWN_ISSUES.md) - Issue tracking
 - [STATUS.md](STATUS.md) - Results, effort, scope
-- [PROJECT_GUIDE.md](PROJECT_GUIDE.md) - Detailed implementation walkthrough
+- [PROJECT_GUIDE.md](PROJECT_GUIDE.md) - Pipeline and methodology guide

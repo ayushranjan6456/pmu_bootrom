@@ -20,15 +20,17 @@ cp app.elf /tmp/demo/attack.elf
 make clean && make        # leave the tree in its normal state
 ```
 
-Check for stray emulators before starting: `ps aux | grep qemu | grep -v grep` should print nothing.
+Check for stray emulators before starting: `ps aux | grep qemu | grep -v grep` should print nothing. `severity_sweep.sh` and `test_firmware_detector.sh` both start with `make clean` and rebuild the shared `app.elf` (and `make` does too), so never run two of them, or demo preparation, at the same time; run them one at a time. The sweep rebuilds the normal firmware when it finishes, but the validation script ends on the glitched build. If you are unsure which build is on disk, run `make clean && make` before recording; the demo itself uses the copies in `/tmp/demo`.
 
-Pre-run once and record the terminal (for example `script` or a screen recording) as the fallback.
+Pre-run once and record the terminal (for example `script` or a screen recording) as the fallback. About 1% of clean boots false-alarm (one did in a dry run, the first boot after the builds), so do not record straight after building: wait a minute, and have retakes ready.
 
 ## Step 1: Clean boot (about 1.5 min)
 
 ```bash
 timeout 2 qemu-system-arm -machine mps2-an505 -cpu cortex-m33 -nographic -kernel /tmp/demo/clean.elf </dev/null
 ```
+
+Run it from an interactive terminal at least once before the review; `</dev/null` avoids the capture problem seen there.
 
 Show: banner, the `DATA_START ... DATA_END` block (one row per checkpoint: cp, elapsed, sub_a, sub_b, sub_c) and `=== BOOT COMPLETE ===`.
 

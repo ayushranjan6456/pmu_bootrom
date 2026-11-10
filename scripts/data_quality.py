@@ -30,4 +30,4 @@ print("\n=== DUPLICATE CHECK ===")
 feature_cols = ['cp', 'elapsed', 'sub_a', 'sub_b', 'sub_c']
 n_unique = df[feature_cols].drop_duplicates().shape[0]
 print(f"Unique feature rows: {n_unique} out of {len(df)} total")
-print(f"{'DETERMINISTIC (QEMU)' if n_unique <= df.cp.nunique() else 'HAS VARIANCE — good for real hardware'}")
+print(f"{'DETERMINISTIC (QEMU, no host jitter)' if n_unique <= df.cp.nunique() else 'HAS VARIANCE (QEMU host timing noise or real hardware)'}")

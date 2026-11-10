@@ -25,7 +25,7 @@ ax1.plot(df_cp2['boot_id'], df_cp2['sub_a'], label='Sub A (Hash Compute)', color
 ax1.plot(df_cp2['boot_id'], df_cp2['sub_b'], label='Sub B (Key Reduction)', color='orange')
 ax1.plot(df_cp2['boot_id'], df_cp2['sub_c'], label='Sub C (Signature Compare)', color='green')
 
-ax1.set_title('Cycle Stability Across 500 Boots (CP 2)')
+ax1.set_title('Cycle Stability Across 496 Boots (CP 2)')
 ax1.set_xlabel('Boot Iteration')
 ax1.set_ylabel('Execution Time (Cycles)')
 ax1.legend()
@@ -37,7 +37,7 @@ ax2.hist(df_cp2['sub_a'], bins=10, alpha=0.6, label='Sub A', color='blue')
 ax2.hist(df_cp2['sub_b'], bins=10, alpha=0.6, label='Sub B', color='orange')
 ax2.hist(df_cp2['sub_c'], bins=10, alpha=0.6, label='Sub C', color='green')
 
-ax2.set_title('Execution Time Distribution (Hardware Variance)')
+ax2.set_title('Execution Time Distribution (496 boots, QEMU host timing noise)')
 ax2.set_xlabel('Execution Time (Cycles)')
 ax2.set_ylabel('Frequency')
 ax2.legend()

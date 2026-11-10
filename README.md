@@ -64,7 +64,7 @@ make clean && make
 ### 5. Test Detection
 
 ```bash
-# Run automated test suite
+# Run automated test suite (one at a time: it runs make clean and rebuilds the shared app.elf)
 bash scripts/test_firmware_detector.sh
 
 # Prints the false alarm rate and detection rate; PASS means <=5% false alarms and >=90% detection.
@@ -150,17 +150,18 @@ python scripts/baseline_comparison.py
 ```bash
 # Test clean boot (expect no alarm)
 make clean && make
-timeout 0.5 make run | grep "ATTACK DETECTED" || echo "Clean ✓"
+timeout 0.5 make run </dev/null | grep "ATTACK DETECTED" || echo "Clean ✓"
 
 # Test glitch attack (expect alarm)
 make clean
 make CFLAGS="-mcpu=cortex-m33 -mthumb -O0 -g -Wall -fno-builtin -DGLITCH_ATTACK" app.elf
-timeout 0.5 make run | grep "ATTACK DETECTED" && echo "Detected ✓"
+timeout 0.5 make run </dev/null | grep "ATTACK DETECTED" && echo "Detected ✓"
 
 # Run full test suite
 bash scripts/test_firmware_detector.sh
 
 # Partial-skip glitch sweep (N boots per setting, default 20)
+# Run these scripts one at a time: both run `make clean` and rebuild the shared app.elf.
 PCTS="25 50 75" N=20 bash scripts/severity_sweep.sh
 # Rebuilds app.elf at the end. In QEMU the result does not depend on the skip
 # percentage (see STATUS.md, "Firmware partial-severity sweep"), so use it

@@ -5,3 +5,4 @@ __pycache__/
 *.elf
 *.bin
 data/temp_*.txt
+tests/test_firmware_detector

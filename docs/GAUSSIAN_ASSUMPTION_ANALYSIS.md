@@ -16,15 +16,15 @@ The CUSUM detector assumes feature vectors follow a **multivariate Gaussian (nor
 ```
 Feature  | W-statistic | p-value  | Assessment
 ---------|-------------|----------|------------------
-sub_a    | 0.8879      | <0.0001  | NON-GAUSSIAN ❌
-sub_b    | 0.8968      | <0.0001  | NON-GAUSSIAN ❌
-sub_c    | 0.9509      | <0.0001  | NON-GAUSSIAN ❌
+sub_a    | 0.9462      | <0.0001  | NON-GAUSSIAN ❌
+sub_b    | 0.9463      | <0.0001  | NON-GAUSSIAN ❌
+sub_c    | 0.9215      | <0.0001  | NON-GAUSSIAN ❌
 ```
 
 **Visual Characteristics:**
-- Trimodal with slight negative skew (three peaks at approximately 735, 640, and 540 cycles)
-- Heavier tails than expected for Gaussian
-- Departure from normality is stronger in sub_a and sub_b than in sub_c
+- Slightly negative skew (-0.11 / -0.14 / -0.24) and negative excess kurtosis (-0.32 / -0.92 / -0.96): flatter than a Gaussian, not heavy-tailed and not right-skewed
+- Several peaks in a kernel density estimate: sub_a at about 655, 738 and 933; sub_b at about 543 and 638; sub_c at about 462, 540 and 638 cycles (peak positions are approximate and depend on the smoothing)
+- Departure from normality is strongest in sub_c (W = 0.9215)
 
 ---
 
@@ -38,7 +38,7 @@ The bootrom runs in QEMU emulation, where timing measurements include **host OS 
 2. **CPU Frequency Scaling** - Dynamic voltage/frequency changes mid-boot
 3. **Timer Interrupts** - Kernel timer ticks add microsecond-level delays
 4. **Cache Effects** - Host cache state affects QEMU translation performance
-5. **WSL2 Overhead** - Virtualization layer introduces additional jitter
+5. **Virtualization overhead** - if QEMU runs inside a VM or container, the extra layer adds jitter (the 2026-11-10 runs were on native Linux)
 
 ### Measured Impact
 
@@ -72,7 +72,7 @@ The bootrom runs in QEMU emulation, where timing measurements include **host OS 
 
 ### 3. Model Overfitting Risk
 
-**Concern:** Training on 490 samples with high variance → unstable covariance estimate.
+**Concern:** Training on 496 samples with high variance → unstable covariance estimate.
 
 **Mitigation:**
 - IQR outlier filtering (the 2.5 x IQR filter removed none from the 496-boot dataset)
@@ -95,8 +95,8 @@ The detector works well **despite** non-Gaussianity because:
 
 1. **Empirical calibration:** Threshold set from actual data, not theory
 2. **Large effect size:** Glitches cause 50-500 cycle shifts (>> noise)
-3. **Accumulation:** CUSUM integrates evidence over time, smoothing single-sample noise
-4. **Conservative threshold:** firmware H sits well above the clean MD range (margin over the largest clean MD)
+3. **Conservative threshold:** firmware H (1.25 x the largest clean MD) sits above the whole clean MD range of the training data
+4. **No accumulation in firmware:** the firmware tests one boot, so it is a threshold on Mahalanobis distance; only the Python simulation accumulates evidence over a window
 
 **Key Insight:** Gaussian assumption is a **modeling convenience**, not a hard requirement.
 
@@ -170,7 +170,7 @@ The detector works well **despite** non-Gaussianity because:
 
 **Results:** see [STATUS.md](../STATUS.md#2-results) (1000 clean and 1000 glitched boots).
 
-**Conclusion:** Gaussian assumption violation does not prevent detection of the large simulated fault, at a false alarm rate near the 1% design target.
+**Conclusion:** Gaussian assumption violation does not prevent detection of the large simulated fault. The pooled firmware false-alarm rate is about 1% (23 / 2000), and all of those alarms are timing spikes (STATUS.md, ISSUE-013). The 1% figure is a measured result for the firmware, not a design target: the firmware threshold is 1.25 x the largest clean MD, not a percentile.
 
 ### Test 2: Threshold Robustness
 
@@ -179,9 +179,9 @@ The detector works well **despite** non-Gaussianity because:
 **Method:** Compare theoretical H (from chi-squared) vs. empirical H (from data).
 
 **Results:**
-- Theoretical H (sqrt(χ² 99th percentile for 3D)): ≈3.37
-- Empirical H (99th percentile of actual MD): 8.67 (firmware uses H = 1.25 × 8.67 = 10.84)
-- Using theoretical H would give a much higher false alarm rate (not measured)
+- Theoretical MD threshold for a Gaussian (sqrt of the χ² 99th percentile, 3 degrees of freedom): 3.37. Applied to the 496 clean boots it flags 3.6% (a Gaussian would give 1%).
+- Empirical 99th percentile of the clean MD: 4.88 (flags 1% by construction)
+- Largest clean MD: 8.67. The firmware uses H = 1.25 × 8.67 = 10.84, which is above every training boot.
 - The firmware's empirical threshold gave a false alarm rate of about 1% on 2000 clean boots (pooled), all from timing spikes ([STATUS.md](../STATUS.md#2-results))
 
 **Conclusion:** Empirical calibration essential for non-Gaussian data.
@@ -221,7 +221,7 @@ The non-Gaussian feature distributions in Phase 1 are a **known artifact of QEMU
 
 1. Empirical calibration accounts for actual data characteristics
 2. Large glitch effects overwhelm distributional details
-3. CUSUM accumulation smooths single-sample noise
+3. The firmware threshold sits above every clean training boot
 
 **No action required for Phase 1.** Whether hardware removes the non-Gaussianity is a Phase 2 hypothesis, to be tested on the STM32L552.
 
@@ -237,6 +237,6 @@ The non-Gaussian feature distributions in Phase 1 are a **known artifact of QEMU
 
 ---
 
-**Document Version:** 1.0  
+**Document Version:** 1.1  
 **Author:** Ayush (with Claude Code)  
 **Date:** November 7, 2026

@@ -1,3 +1,5 @@
+> **SUPERSEDED: historical document.** Written before the final Phase 1 validation. Statements such as '100% detection' or '0% false alarms' below are NOT current results. For current numbers, limitations and status see [STATUS.md](../STATUS.md).
+
 # Phase 1 Completion Summary
 
 **Project:** PMU-Based Statistical Detection of Fault Injection Attacks in Secure Boot  
