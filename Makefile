@@ -48,11 +48,29 @@ collect: $(TARGET)
 
 # --- Attack Simulation Targets ---
 
-# Attack build for data collection: glitch on, detector halt off so the
-# telemetry block is still printed. Compiled straight from sources so it
-# never overwrites the objects used by the normal build.
+# Original attack build: CP2 sub_b loop removed (100% skip)
 app_attack.elf: $(SRCS)
 	$(CC) $(CFLAGS) -DGLITCH_ATTACK -DCOLLECT_MODE $(LDFLAGS) $^ -o $@
+
+# FT-1: Skip CP1 memory check loop (sub_b)
+app_ft1.elf: $(SRCS)
+	$(CC) $(CFLAGS) -DGLITCH_FT1_CP1_MEMCHECK -DCOLLECT_MODE $(LDFLAGS) $^ -o $@
+
+# FT-2: Skip CP2 signature comparison loop (sub_c)
+app_ft2.elf: $(SRCS)
+	$(CC) $(CFLAGS) -DGLITCH_FT2_CP2_COMPARE -DCOLLECT_MODE $(LDFLAGS) $^ -o $@
+
+# FT-3: Skip CP3 key derivation hash loop (sub_a)
+app_ft3.elf: $(SRCS)
+	$(CC) $(CFLAGS) -DGLITCH_FT3_CP3_KEYHASH -DCOLLECT_MODE $(LDFLAGS) $^ -o $@
+
+# FT-4: Skip both CP2 sub_a and sub_b (double loop fault, tests blind spot)
+app_ft4.elf: $(SRCS)
+	$(CC) $(CFLAGS) -DGLITCH_FT4_CP2_DOUBLE -DCOLLECT_MODE $(LDFLAGS) $^ -o $@
+
+# FT-5: Variable corruption (adds extra work rather than skipping)
+app_ft5.elf: $(SRCS)
+	$(CC) $(CFLAGS) -DGLITCH_FT5_CORRUPT_FLAG -DCOLLECT_MODE $(LDFLAGS) $^ -o $@
 
 # Convenience target to collect 50 boots under attack
 collect-attack: app_attack.elf

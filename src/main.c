@@ -120,8 +120,13 @@ static void stage_memory_init(uint32_t cp_id) {
     t1 = systick_elapsed();
 
     /* Sub-stage B: peripheral base address probing */
-    for (int i = 0; i < 200; i++) x ^= (i * 7);
-    t2 = systick_elapsed();
+    #ifdef GLITCH_FT1_CP1_MEMCHECK
+        /* FT-1: Skip memory check loop (fault injection at CP1 sub_b) */
+        t2 = systick_elapsed();
+    #else
+        for (int i = 0; i < 200; i++) x ^= (i * 7);
+        t2 = systick_elapsed();
+    #endif
 
     /* Sub-stage C: clock/PLL configuration simulation */
     for (int i = 0; i < 200; i++) x = (x << 1) | (x >> 31);
@@ -147,12 +152,22 @@ static void stage_signature_verify(uint32_t cp_id) {
     /* Sub-stage A: hash computation (SHA-256 simulation) */
     t0 = systick_elapsed();
     volatile uint32_t x = 0xDEADBEEF;
-    for (int i = 0; i < 500; i++) x = (x << 3) ^ (x >> 5) ^ (uint32_t)i;
-    t1 = systick_elapsed();
+    #ifdef GLITCH_FT4_CP2_DOUBLE
+        /* FT-4: Skip hash loop (double fault: both sub_a and sub_b) */
+        t1 = systick_elapsed();
+    #else
+        for (int i = 0; i < 500; i++) x = (x << 3) ^ (x >> 5) ^ (uint32_t)i;
+        t1 = systick_elapsed();
+    #endif
 
     /* Sub-stage B: public key load + modular reduction simulation */
-    #ifndef GLITCH_ATTACK
+    #if defined(GLITCH_FT4_CP2_DOUBLE)
+        /* FT-4: Skip verification loop (double fault with sub_a) */
+        t2 = systick_elapsed();
+    #elif !defined(GLITCH_ATTACK)
         #define SUB_B_ITERS 300
+        for (int i = 0; i < SUB_B_ITERS; i++) x ^= (x * 31337U) >> 8;
+        t2 = systick_elapsed();
     #else
         /* GLITCH ATTACK: skip GLITCH_SKIP_PCT percent of the loop iterations
          * (default 100 = bypass the whole sub-stage, no loop is emitted). */
@@ -160,17 +175,32 @@ static void stage_signature_verify(uint32_t cp_id) {
             #define GLITCH_SKIP_PCT 100
         #endif
         #define SUB_B_ITERS (300 * (100 - GLITCH_SKIP_PCT) / 100)
+        #if SUB_B_ITERS > 0
+        for (int i = 0; i < SUB_B_ITERS; i++) x ^= (x * 31337U) >> 8;
+        #endif
+        t2 = systick_elapsed();
     #endif
-    #if SUB_B_ITERS > 0
-    for (int i = 0; i < SUB_B_ITERS; i++) x ^= (x * 31337U) >> 8;
-    #endif
-
-
-    t2 = systick_elapsed();
 
     /* Sub-stage C: signature comparison (the critical branch) */
-    for (int i = 0; i < 200; i++) x = x ^ (uint32_t)(i * i);
-    t3 = systick_elapsed();
+    #ifdef GLITCH_FT2_CP2_COMPARE
+        /* FT-2: Skip signature comparison loop (fault injection at CP2 sub_c) */
+        t3 = systick_elapsed();
+    #else
+        for (int i = 0; i < 200; i++) x = x ^ (uint32_t)(i * i);
+        t3 = systick_elapsed();
+    #endif
+
+    #ifdef GLITCH_FT5_CORRUPT_FLAG
+        /* FT-5: Variable corruption - flip verification result flag
+         * Simulates: register fault that corrupts the "signature valid" boolean.
+         * Attack vector: fault during result comparison corrupts outcome flag.
+         * This adds extra work rather than skipping, creating a different signature. */
+        volatile uint32_t verify_flag = 1; /* normally set by comparison */
+        for (int i = 0; i < 50; i++) {
+            verify_flag ^= (x & 0x1); /* corrupt with hash bits */
+        }
+        (void)verify_flag;
+    #endif
     (void)x;
 
     boot_log[cp_id].sub_a = t1 - t0;
@@ -184,8 +214,13 @@ static void stage_key_derivation(uint32_t cp_id) {
     /* Sub-stage A: TRNG read simulation */
     t0 = systick_elapsed();
     volatile uint32_t x = 0xCAFEBABE;
-    for (int i = 0; i < 100; i++) x ^= x >> 3;
-    t1 = systick_elapsed();
+    #ifdef GLITCH_FT3_CP3_KEYHASH
+        /* FT-3: Skip key derivation hash loop (fault injection at CP3 sub_a) */
+        t1 = systick_elapsed();
+    #else
+        for (int i = 0; i < 100; i++) x ^= x >> 3;
+        t1 = systick_elapsed();
+    #endif
 
     /* Sub-stage B: KDF mixing */
     for (int i = 0; i < 100; i++) x = (x * 1664525U) + 1013904223U;
