@@ -291,7 +291,7 @@ After fix, `python scripts/cusum_detector.py` shows:
 AUC (severity=20%) = 0.9933   (current data; the first fixed run printed 1.0000 on the earlier dataset)
 ```
 
-Perfect discrimination: detector can separate attack from nominal at all threshold values.
+Near-perfect discrimination (AUC 0.993): detector can separate attack from nominal at almost all threshold values.
 
 **Priority:** ✅ Complete  
 **Effort:** 10 hours (diagnostic + fix + verification; see STATUS.md)
@@ -425,7 +425,7 @@ Planned work: see [STATUS.md](STATUS.md#7-phase-2-plan).
 - Detection happens offline after data collection
 
 **Impact:**
-- Cannot demonstrate real-time detection
+- Cannot demonstrate alarm that halts the boot
 - Thesis contribution is incomplete
 - No embedded response (halt boot, zero keys)
 - Phase 1 review will flag this as critical gap
@@ -443,7 +443,7 @@ Planned work: see [STATUS.md](STATUS.md#7-phase-2-plan).
 - Fixed-point Q16.16 arithmetic (no floating-point)
 - Mahalanobis distance calculation with covariance matrix
 - CUSUM sequential change detection
-- Real-time alarm mechanism (halts boot on detection)
+- Alarm mechanism that halts boot on detection
 - Automatic model calibration from clean data
 
 **Critical Bug Fixed:**
@@ -616,15 +616,41 @@ Host test in [tests/test_firmware_detector.c](tests/test_firmware_detector.c): t
 
 ---
 
+### ISSUE-015: Whole-Stage-Skip Blind Spot
+
+**Status:** 🟡 Open (documented as a Phase 1 limitation)  
+**Severity:** Medium  
+**Component:** Detection coverage  
+**Discovered:** 2026-11-10 during final audit
+
+**Description:**
+A fault that skips all three loops of signature verification is not detected (median MD 9.1 vs H 10.84, test: /tmp/skipall build).
+
+**Details:**
+- Removing all three loops of `stage_signature_verify` (test build): 30 boots on QEMU 8.2.2 give median sub-stages 143 / 90 / 81, median MD 9.11, with 1 of 30 boots above H (due to a 333-cycle `sub_b` spike).
+- Removing any one loop or any two loops does alarm (MD 20.9 to 26.0).
+- Why: the three sub-stages move together, so shrinking all of them is the direction the model treats as normal.
+
+**Impact:**
+The shipped detector reliably catches the simulated fault (sub-stage B loop removed) and partial reductions above about 40%, but misses a fault that removes all three verification loops.
+
+**Phase 2 mitigation:**
+Test one-sided `sub_b` threshold (arithmetic shows it would catch this case: threshold `sub_b` < 459 against observed 90). Multi-checkpoint fusion may also help (ISSUE-009).
+
+**Priority:** P2 - Phase 2  
+**Effort:** documented
+
+---
+
 ## Issue Statistics
 
-**Total Issues:** 14  
+**Total Issues:** 15  
 **Resolved:** 5 (ISSUE-001, ISSUE-004, ISSUE-005, ISSUE-008, ISSUE-014)  
-**Documented limitation:** 2 (ISSUE-002, ISSUE-013)  
+**Documented limitation:** 3 (ISSUE-002, ISSUE-013, ISSUE-015)  
 **Open:** 7 (ISSUE-003, ISSUE-006, ISSUE-007, ISSUE-009, ISSUE-010, ISSUE-011, ISSUE-012)
 
 **By severity (open and documented):**
-- **Medium:** ISSUE-002, ISSUE-003, ISSUE-007, ISSUE-009, ISSUE-012, ISSUE-013
+- **Medium:** ISSUE-002, ISSUE-003, ISSUE-007, ISSUE-009, ISSUE-012, ISSUE-013, ISSUE-015
 - **Low:** ISSUE-006, ISSUE-010, ISSUE-011
 
 **Phase 1 blockers:** ISSUE-001, ISSUE-004, ISSUE-008 and ISSUE-014 are fixed. Remaining items are limitations stated in STATUS.md Section 6.

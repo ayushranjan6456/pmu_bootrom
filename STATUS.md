@@ -139,6 +139,8 @@ Reading it honestly:
 
 From `scripts/cusum_detector.py`, a timing shift applied to sub-stage B of nominal data, sequential CUSUM over 20-boot windows. Details in [KNOWN_ISSUES.md](KNOWN_ISSUES.md) ISSUE-003.
 
+**Note:** The detection rates below are for 10 consecutive faulted boots (per stream), not single boots. Each stream is 10 clean boots followed by 10 faulted ones, resampled from the same 496 boots used to fit the model (in-sample). With the same k and H, one faulted boot at 20% severity is detected 2.3% of the time, three boots 83%, ten boots 100%.
+
 | Severity | Detection rate | False alarm rate |
 |----------|----------------|------------------|
 | 5% | 4.5% | 0.1% |
@@ -259,6 +261,8 @@ The breakdown below allocates the 600 hours across the work visible in the repos
 
 Share of total: research and learning 22.5%, infrastructure 9.2%, bootrom firmware 8.3%, statistical pipeline 20.0%, firmware detector 14.2%, debugging 10.0%, testing and validation 8.3%, documentation 5.0%, project management 2.5% (sums to 100%).
 
+**Note:** The 600 hours above is an allocation across delivered work. An earlier commit message (4b019e3) and archived documents give ~205 hours; the difference reflects untracked early exploration and rework.
+
 AI tool use: Claude Code was used as a development assistant for implementation, debugging and documentation. The hours above are the student's total effort including that assisted work.
 
 ## 5. Scope versus the Phase 0 proposal
@@ -316,4 +320,4 @@ Phase 2 budget per the guidelines: about 400 hours.
 | [review/QA_BACKUP.md](review/QA_BACKUP.md) | Likely panel questions and answers |
 | `archive/` | Superseded documents, kept for history (each carries a SUPERSEDED banner) |
 
-The literature survey (`COMPREHENSIVE_LITERATURE_SURVEY.md`), the project-level `README.md` and `CLAUDE.md`, and the course guidelines sit one level above this repository and are not part of it.
+The literature survey (`Literature_Survey/COMPREHENSIVE_LITERATURE_SURVEY.md`), the project-level `README.md` and `CLAUDE.md`, and the course guidelines sit one level above this repository and are not part of it.

@@ -1,12 +1,12 @@
 # Firmware-Embedded CUSUM Detector
 
 **Status:** Implemented (Phase 1)  
-**Date:** November 7, 2026  
+**Date:** 2026-11-10  
 **Files:** `src/cusum_detector.{h,c}`, integrated in `src/main.c`
 
 ## Overview
 
-Real-time fault injection detector running directly in bootrom firmware. Detects timing anomalies caused by voltage/clock glitch attacks using CUSUM (Cumulative Sum) sequential change detection.
+Firmware-embedded fault injection detector that runs once per boot after checkpoint 2; one CUSUM update, so a one-shot threshold on Mahalanobis distance. Detects timing anomalies caused by voltage/clock glitch attacks.
 
 **Key point:** The detector runs **during boot**, not offline. Results are in [STATUS.md](STATUS.md).
 
@@ -14,12 +14,12 @@ Real-time fault injection detector running directly in bootrom firmware. Detects
 
 ### Data Flow
 ```
-Boot Stage → PMU Checkpoint → Feature Vector → CUSUM Update → Alarm?
-                                   ↓                  ↓
-                            [sub_a, sub_b, sub_c]   S > H?
-                                   ↓                  ↓
-                            Mahalanobis Distance   YES → HALT BOOT
-                                                   NO  → Continue
+Boot Stage → Timing Checkpoint (SysTick) → Feature Vector → CUSUM Update → Alarm?
+                                               ↓                  ↓
+                                        [sub_a, sub_b, sub_c]   S > H?
+                                               ↓                  ↓
+                                        Mahalanobis Distance   YES → HALT BOOT
+                                                               NO  → Continue
 ```
 
 ### Files
@@ -51,7 +51,7 @@ Uses Q16.16 format (signed 32-bit):
 **Why no floats?**
 - Cortex-M33 has no FPU in this config
 - Float ops require soft-float library (large)
-- Fixed-point is 10× faster, deterministic
+- No FPU needed with fixed-point
 
 **Example:**
 ```c
@@ -95,6 +95,8 @@ The squared Mahalanobis distance `q = (x-μ)' Σ⁻¹ (x-μ)` is computed as a 6
 | **H** | Alarm threshold. Set to 1.25 x the largest clean-boot Mahalanobis distance. With k_slack = 0 the alarm fires when MD > H. |
 
 Values: see `CUSUM_MODEL` in `src/cusum_detector.c`.
+
+**Note:** The one-shot threshold is sensitive to the single largest clean MD. In the current dataset, boot 78 (`sub_a` = 934) has MD 8.669, and H = 1.25 × 8.669 = 10.84. The next largest clean MD is 6.091, so without boot 78 the threshold would be significantly lower.
 
 **One-shot operation.** The firmware calls `cusum_update` once per boot with S starting at 0, so it is a threshold test on Mahalanobis distance, not a sequential detector. The Python pipeline (`build_model.py`) runs CUSUM over 20-boot windows and calibrates a different `k` and `H` for that setting; those values are not used in firmware. Sequential accumulation across checkpoints is Phase 2 work.
 

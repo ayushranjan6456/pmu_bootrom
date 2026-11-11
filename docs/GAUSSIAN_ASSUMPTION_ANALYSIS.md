@@ -89,12 +89,12 @@ The bootrom runs in QEMU emulation, where timing measurements include **host OS 
 2. **Efficient computation** - Covariance inverse computed once offline
 3. **Well-studied theory** - CUSUM optimality proofs for Gaussian case
 
-### Reality: Robust Performance Despite Violation
+### Reality: Detection of the large simulated fault works despite non-Gaussianity
 
 The detector works well **despite** non-Gaussianity because:
 
 1. **Empirical calibration:** Threshold set from actual data, not theory
-2. **Large effect size:** Glitches cause 50-500 cycle shifts (>> noise)
+2. **Large effect size:** Glitches cause cycle shifts large against the 60-cycle spread
 3. **Conservative threshold:** firmware H (1.25 x the largest clean MD) sits above the whole clean MD range of the training data
 4. **No accumulation in firmware:** the firmware tests one boot, so it is a threshold on Mahalanobis distance; only the Python simulation accumulates evidence over a window
 
@@ -225,7 +225,7 @@ The non-Gaussian feature distributions in Phase 1 are a **known artifact of QEMU
 
 **No action required for Phase 1.** Whether hardware removes the non-Gaussianity is a Phase 2 hypothesis, to be tested on the STM32L552.
 
-**Thesis Impact:** Document as limitation, emphasize robust performance despite it, note hardware resolution in future work.
+**Thesis Impact:** Document as limitation, emphasize detection of the large simulated fault works despite non-Gaussianity, note hardware resolution in future work.
 
 ---
 

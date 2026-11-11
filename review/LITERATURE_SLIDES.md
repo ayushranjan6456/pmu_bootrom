@@ -8,7 +8,7 @@
 
 ## Author notes (do not share or present)
 
-Before using these slides, be aware of issues in `COMPREHENSIVE_LITERATURE_SURVEY.md`:
+Before using these slides, be aware of issues in `../Literature_Survey/COMPREHENSIVE_LITERATURE_SURVEY.md`:
 
 - **Reference list (Section 8):** Author names are wrong for most of the 20 papers. The correct names (from `papers_list.csv`) are used in these slides.
 - **Missing papers:**

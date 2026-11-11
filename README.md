@@ -255,6 +255,11 @@ make clean && make
 **Problem:** QEMU version < 8.0 (mps2-an505 not available)
 - Install QEMU 8.0 or newer (the project was run on 8.2.2); older releases lack the `mps2-an505` machine or have a UART bug
 
+**Problem:** QEMU 6.2.0 has a SysTick bug that causes alarm on every boot
+- Symptoms: Every clean boot prints "Timer with period zero, disabling" then `ALARM_FEATURES,0,0,0`
+- Solution: Use QEMU 8.2+ (check with `qemu-system-arm --version`)
+- If multiple QEMU versions are installed, ensure the correct one is in your PATH (e.g., `/usr/local/bin` before `/usr/bin`)
+
 **Problem:** Timing noise too high (CV > 15%)
 - QEMU limitation - expected CV ~10%
 - Hardware variance is expected to be lower; this is a hypothesis to test in Phase 2

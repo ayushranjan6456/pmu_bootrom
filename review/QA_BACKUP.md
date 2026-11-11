@@ -14,7 +14,7 @@ Correct. In firmware, S starts at 0 and gets one update, so it is a calibrated o
 The measured rate is in STATUS.md. Any non-zero rate means some legitimate boots halt, which is unacceptable for a product. Phase 1 shows the pipeline; the Phase 2 goals are hardware with lower timing noise and a response policy better than halt (retry, then lock out).
 
 **4. Why a Gaussian model when Shapiro-Wilk rejects Gaussianity?**
-Measured and documented ([GAUSSIAN_ASSUMPTION_ANALYSIS.md](../docs/GAUSSIAN_ASSUMPTION_ANALYSIS.md)). Thresholds are set empirically from observed distances, not from Gaussian quantiles, so the test still has a controlled false-alarm rate on this data. The non-Gaussianity is attributed to QEMU host jitter; whether hardware removes it is a hypothesis for Phase 2.
+Measured and documented ([GAUSSIAN_ASSUMPTION_ANALYSIS.md](../docs/GAUSSIAN_ASSUMPTION_ANALYSIS.md)). Thresholds are set empirically from observed distances, not from Gaussian quantiles, so the test still has a measured false-alarm rate on this data. The non-Gaussianity is attributed to QEMU host jitter; whether hardware removes it is a hypothesis for Phase 2.
 
 **5. Why does the Python threshold differ from the firmware threshold?**
 Different problems. Python is sequential over 20-boot windows (k from the 70th percentile of clean MD, H from the 99th percentile of the window maximum). Firmware is one observation, so it uses k = 0 and H = 1.25 x the largest clean MD. Details in [FIRMWARE_DETECTOR.md](../FIRMWARE_DETECTOR.md).
