@@ -56,15 +56,15 @@ app_attack.elf: $(SRCS)
 app_ft1.elf: $(SRCS)
 	$(CC) $(CFLAGS) -DGLITCH_FT1_CP1_MEMCHECK -DCOLLECT_MODE $(LDFLAGS) $^ -o $@
 
-# FT-2: Skip CP2 signature comparison loop (sub_c)
+# FT-2: Skip CP3 signature comparison loop (sub_c)
 app_ft2.elf: $(SRCS)
 	$(CC) $(CFLAGS) -DGLITCH_FT2_CP2_COMPARE -DCOLLECT_MODE $(LDFLAGS) $^ -o $@
 
-# FT-3: Skip CP3 key derivation hash loop (sub_a)
+# FT-3: Skip CP7 handoff stack setup loop (sub_a)
 app_ft3.elf: $(SRCS)
-	$(CC) $(CFLAGS) -DGLITCH_FT3_CP3_KEYHASH -DCOLLECT_MODE $(LDFLAGS) $^ -o $@
+	$(CC) $(CFLAGS) -DGLITCH_FT3_CP7_HANDOFF -DCOLLECT_MODE $(LDFLAGS) $^ -o $@
 
-# FT-4: Skip both CP2 sub_a and sub_b (double loop fault, tests blind spot)
+# FT-4: Skip both CP3 sub_a and sub_b (double loop fault, tests blind spot)
 app_ft4.elf: $(SRCS)
 	$(CC) $(CFLAGS) -DGLITCH_FT4_CP2_DOUBLE -DCOLLECT_MODE $(LDFLAGS) $^ -o $@
 

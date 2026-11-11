@@ -88,7 +88,7 @@ typedef struct {
     uint32_t sub_c;            /* sub-stage C duration (cycles)     */
 } pmu_snapshot_t;
 
-#define NUM_CHECKPOINTS 4
+#define NUM_CHECKPOINTS 8
 
 static pmu_snapshot_t boot_log[NUM_CHECKPOINTS];
 
@@ -132,6 +132,33 @@ static void stage_memory_init(uint32_t cp_id) {
     for (int i = 0; i < 200; i++) x = (x << 1) | (x >> 31);
     t3 = systick_elapsed();
     (void)x;
+
+    boot_log[cp_id].sub_a = t1 - t0;
+    boot_log[cp_id].sub_b = t2 - t1;
+    boot_log[cp_id].sub_c = t3 - t2;
+}
+
+static void stage_boot_mode_detect(uint32_t cp_id) {
+    /*
+     * NEW CP2: Boot mode selection (UART boot vs SPI vs CAN)
+     * Models: pin sampling, configuration register reads, mode decode
+     */
+    uint32_t t0, t1, t2, t3;
+
+    /* Sub-stage A: Pin/strap sampling simulation */
+    t0 = systick_elapsed();
+    volatile uint32_t mode = 0;
+    for (int i = 0; i < 150; i++) mode ^= (i & 0xF); /* sample boot pins */
+    t1 = systick_elapsed();
+
+    /* Sub-stage B: Configuration register decode */
+    for (int i = 0; i < 150; i++) mode = (mode << 2) | (mode >> 30);
+    t2 = systick_elapsed();
+
+    /* Sub-stage C: Mode validation and path selection */
+    for (int i = 0; i < 150; i++) mode += (i * mode) & 0xFF;
+    t3 = systick_elapsed();
+    (void)mode;
 
     boot_log[cp_id].sub_a = t1 - t0;
     boot_log[cp_id].sub_b = t2 - t1;
@@ -208,28 +235,113 @@ static void stage_signature_verify(uint32_t cp_id) {
     boot_log[cp_id].sub_c = t3 - t2;
 }
 
-static void stage_key_derivation(uint32_t cp_id) {
+static void stage_decrypt(uint32_t cp_id) {
+    /*
+     * NEW CP4: Firmware decryption stage
+     * Models: Key derivation, IV setup, AES block decryption
+     */
     uint32_t t0, t1, t2, t3;
 
-    /* Sub-stage A: TRNG read simulation */
+    /* Sub-stage A: Key derivation for decryption */
     t0 = systick_elapsed();
-    volatile uint32_t x = 0xCAFEBABE;
-    #ifdef GLITCH_FT3_CP3_KEYHASH
-        /* FT-3: Skip key derivation hash loop (fault injection at CP3 sub_a) */
+    volatile uint32_t key = 0x12345678;
+    for (int i = 0; i < 250; i++) key = (key * 1664525U) + 1013904223U; /* LCG */
+    t1 = systick_elapsed();
+
+    /* Sub-stage B: IV setup and block counter init */
+    for (int i = 0; i < 250; i++) key ^= (key << 13) ^ (key >> 17);
+    t2 = systick_elapsed();
+
+    /* Sub-stage C: AES decryption simulation (block cipher rounds) */
+    for (int i = 0; i < 250; i++) key = ((key << 5) ^ (key >> 3)) + i;
+    t3 = systick_elapsed();
+    (void)key;
+
+    boot_log[cp_id].sub_a = t1 - t0;
+    boot_log[cp_id].sub_b = t2 - t1;
+    boot_log[cp_id].sub_c = t3 - t2;
+}
+
+static void stage_integrity_check(uint32_t cp_id) {
+    /*
+     * NEW CP5: Post-decrypt integrity validation
+     * Models: CRC, authentication tag verify, rollback counter check
+     */
+    uint32_t t0, t1, t2, t3;
+
+    /* Sub-stage A: CRC-32 computation over firmware */
+    t0 = systick_elapsed();
+    volatile uint32_t crc = 0xFFFFFFFF;
+    for (int i = 0; i < 300; i++) crc = (crc >> 8) ^ (crc & 0xFF) ^ i;
+    t1 = systick_elapsed();
+
+    /* Sub-stage B: Authentication tag verification (HMAC simulation) */
+    for (int i = 0; i < 300; i++) crc ^= (crc * 31337U) >> 8;
+    t2 = systick_elapsed();
+
+    /* Sub-stage C: Rollback counter and version check */
+    for (int i = 0; i < 300; i++) crc = (crc << 1) | ((crc >> 31) ^ (i & 1));
+    t3 = systick_elapsed();
+    (void)crc;
+
+    boot_log[cp_id].sub_a = t1 - t0;
+    boot_log[cp_id].sub_b = t2 - t1;
+    boot_log[cp_id].sub_c = t3 - t2;
+}
+
+static void stage_memory_setup(uint32_t cp_id) {
+    /*
+     * NEW CP6: Memory protection and isolation setup
+     * Models: MMU config, MPU regions, TrustZone-M boundaries
+     */
+    uint32_t t0, t1, t2, t3;
+
+    /* Sub-stage A: MPU region programming */
+    t0 = systick_elapsed();
+    volatile uint32_t mpu = 0;
+    for (int i = 0; i < 180; i++) mpu |= (i << (i & 0x1F));
+    t1 = systick_elapsed();
+
+    /* Sub-stage B: TrustZone-M SAU configuration */
+    for (int i = 0; i < 180; i++) mpu ^= (mpu >> 7) | (i << 16);
+    t2 = systick_elapsed();
+
+    /* Sub-stage C: Memory barrier and permission validation */
+    for (int i = 0; i < 180; i++) mpu = (mpu + i) ^ (mpu >> 3);
+    t3 = systick_elapsed();
+    (void)mpu;
+
+    boot_log[cp_id].sub_a = t1 - t0;
+    boot_log[cp_id].sub_b = t2 - t1;
+    boot_log[cp_id].sub_c = t3 - t2;
+}
+
+static void stage_handoff(uint32_t cp_id) {
+    /*
+     * CP7: Final handoff preparation to application firmware
+     * Models: Stack setup, register init, jump vector preparation
+     */
+    uint32_t t0, t1, t2, t3;
+
+    /* Sub-stage A: Stack pointer and frame setup */
+    t0 = systick_elapsed();
+    volatile uint32_t sp = 0x20010000; /* app stack base */
+    #ifdef GLITCH_FT3_CP7_HANDOFF
+        /* FT-3: Skip stack setup loop (fault injection at CP7 sub_a) */
         t1 = systick_elapsed();
     #else
-        for (int i = 0; i < 100; i++) x ^= x >> 3;
+        for (int i = 0; i < 120; i++) sp += (i * 4); /* stack frame calc */
         t1 = systick_elapsed();
     #endif
 
-    /* Sub-stage B: KDF mixing */
-    for (int i = 0; i < 100; i++) x = (x * 1664525U) + 1013904223U;
+    /* Sub-stage B: Application entry point validation */
+    for (int i = 0; i < 120; i++) sp ^= (sp >> 11) ^ i;
     t2 = systick_elapsed();
 
-    /* Sub-stage C: key storage into secure registers */
-    for (int i = 0; i < 100; i++) x = x ^ (x << 7) ^ (uint32_t)i;
+    /* Sub-stage C: Final register state and jump preparation */
+    for (int i = 0; i < 120; i++) sp = (sp << 3) | ((sp >> 29) & 0x7);
     t3 = systick_elapsed();
-    (void)x;
+    (void)sp;
 
     boot_log[cp_id].sub_a = t1 - t0;
     boot_log[cp_id].sub_b = t2 - t1;
@@ -261,25 +373,29 @@ int main(void)
     stage_memory_init(1);
     pmu_checkpoint(1);
 
-    /* Stage 2: signature verify — primary attack target */
-    stage_signature_verify(2);
+    /* Stage 2: boot mode detection */
+    stage_boot_mode_detect(2);
     pmu_checkpoint(2);
 
-    /* ── CHECK FOR ATTACK at CP2 (primary glitch target) ── */
-    uint32_t cp2_features[3] = {
-        boot_log[2].sub_a,
-        boot_log[2].sub_b,
-        boot_log[2].sub_c
+    /* Stage 3: signature verify — primary attack target */
+    stage_signature_verify(3);
+    pmu_checkpoint(3);
+
+    /* ── CHECK FOR ATTACK at CP3 (primary glitch target) ── */
+    uint32_t cp3_features[3] = {
+        boot_log[3].sub_a,
+        boot_log[3].sub_b,
+        boot_log[3].sub_c
     };
 
     /* ── CUSUM Detection ── */
-    if (cusum_update(&detector, cp2_features, 2)) {
-        uart_println("\r\n!!! ATTACK DETECTED at CP2 !!!");
+    if (cusum_update(&detector, cp3_features, 3)) {
+        uart_println("\r\n!!! ATTACK DETECTED at CP3 !!!");
         uart_print("Mahalanobis distance exceeded threshold");
         uart_print("\r\nALARM_FEATURES,");
-        uart_print_u32(cp2_features[0]); uart_putc(',');
-        uart_print_u32(cp2_features[1]); uart_putc(',');
-        uart_print_u32(cp2_features[2]);
+        uart_print_u32(cp3_features[0]); uart_putc(',');
+        uart_print_u32(cp3_features[1]); uart_putc(',');
+        uart_print_u32(cp3_features[2]);
         uart_println("\r\nHALTING BOOT - Security violation");
 
 #ifndef COLLECT_MODE
@@ -290,9 +406,21 @@ int main(void)
 #endif
     }
 
-    /* Stage 3: key derivation */
-    stage_key_derivation(3);
-    pmu_checkpoint(3);
+    /* Stage 4: decrypt firmware image */
+    stage_decrypt(4);
+    pmu_checkpoint(4);
+
+    /* Stage 5: integrity check (CRC, auth tag, rollback) */
+    stage_integrity_check(5);
+    pmu_checkpoint(5);
+
+    /* Stage 6: memory protection setup (MPU, TrustZone-M) */
+    stage_memory_setup(6);
+    pmu_checkpoint(6);
+
+    /* Stage 7: handoff preparation */
+    stage_handoff(7);
+    pmu_checkpoint(7);
 
     /* ── Output: one line per checkpoint, CSV format ── */
     /*
