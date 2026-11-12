@@ -1,0 +1,12 @@
+HALTING-BUILD TEST, 300 boots per variant
+date: 2026-11-12T19:53:27+05:30   git: be14b36   QEMU emulator version 8.2.2
+floor table + Mahalanobis constants as compiled from src/ (dirty firmware files: 0)
+variant elf_sha   halted completed completed+W no_output load_max load_med
+clean   a3d2bfd4       0       293          7         0     1.14     1.00
+attack  dcf4d428     300         0          0         0     1.31     1.11
+ft1     0ce0307a     300         0          0         0     1.30     1.17
+ft2     6590d431     300         0          0         0     1.34     1.11
+ft3     67e7311a     299         1          0         0     1.26     1.12
+ft4     65c847c2     300         0          0         0     1.27     1.11
+ft5     275ad36f       0         0        300         0     1.20     1.09
+halted = floor rule stopped the boot; completed+W = reached BOOT COMPLETE after a Mahalanobis warning; no_output = QEMU gave no usable output (not counted as clean or detected).

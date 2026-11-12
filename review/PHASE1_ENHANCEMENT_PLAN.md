@@ -1,5 +1,12 @@
 # Phase 1 Enhancement Plan
 
+> **SUPERSEDED (2026-11-12).** This is the plan as written before the data was collected. Several premises were wrong, so do not quote its numbers. What happened instead:
+> - The expected Mahalanobis distances in the fault table (section 1.2) were guesses. Measured on the 8-checkpoint data the one-shot Mahalanobis rule detected almost none of the faults (the clean training set contains timing spikes), see [docs/MAHALANOBIS_ANALYSIS.md](../docs/MAHALANOBIS_ANALYSIS.md).
+> - Multi-checkpoint fusion of per-checkpoint Gaussians (section 2) was tested and fails: about 9% to 16% of held-out clean boots alarm. It was replaced by a per-sub-stage floor check at every checkpoint, which halts the boot ([FIRMWARE_DETECTOR.md](../FIRMWARE_DETECTOR.md)).
+> - Done: 5 fault types, 8 checkpoints, 300-boot datasets, firmware validation on fresh boots ([FAULT_MODELS.md](../FAULT_MODELS.md), [STATUS.md](../STATUS.md)).
+> - Not done, and not planned for Phase 1: sequential CUSUM fusion, fusion ROC curves, 3D feature plot, CUSUM trace, latency benchmark, the 1,800-boot set.
+> The original text follows unchanged.
+
 **Goal:** Strengthen Phase 1 deliverables with high-value additions before final review freeze.
 
 **Timeline:** Estimated 40-60 hours of work over 1-2 weeks.

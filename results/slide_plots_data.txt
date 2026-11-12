@@ -7,12 +7,12 @@ FIG 1. Ratio to the clean median per sub-stage (300 boots). Lowest clean ratio o
    ft4 CP3.b: median ratio 0.11, highest boot 0.14
    ft5 CP3.c: median ratio 1.84, highest boot 7.12
 FIG 2 left. CP3 Gaussian fitted on all 300 clean boots (in-sample): largest clean MD 16.7, H 20.9; attack MD median 3.1, max 36.3; attack boots above H: 1
-FIG 2 right. CP3 sub_b ratio to clean median: clean min 0.69, attack median 0.11, attack highest boot 0.77; attack boots below 0.5: 299 of 300; clean boots below 0.5: 0
-FIG 3. Mahalanobis, one-shot (the firmware rule): attack 0.7% (splits 0-1), ft1 18.2% (splits 0-72), ft2 15.6% (splits 0-61), ft3 1.4% (splits 1-2), ft4 0.9% (splits 0-3), ft5 13.4% (splits 0-48)
-FIG 3. Floor at 0.5 x median: attack 99.7% (splits 100-100), ft1 99.7% (splits 100-100), ft2 100.0% (splits 100-100), ft3 100.0% (splits 100-100), ft4 100.0% (splits 100-100), ft5 0.0% (splits 0-0)
+FIG 2 right. CP3 sub_b ratio to clean median: clean min 0.69, attack median 0.11, attack highest boot 0.77; attack boots below 0.45: 299 of 300; clean boots below 0.45: 0
+FIG 3. Mahalanobis, one-shot (per-checkpoint Gaussian): attack 0.7% (splits 0-1), ft1 18.2% (splits 0-72), ft2 15.6% (splits 0-61), ft3 1.4% (splits 1-2), ft4 0.9% (splits 0-3), ft5 13.4% (splits 0-48)
+FIG 3. Floor at 0.45 x median: attack 99.7% (splits 100-100), ft1 99.7% (splits 100-100), ft2 100.0% (splits 100-100), ft3 100.0% (splits 100-100), ft4 100.0% (splits 100-100), ft5 0.0% (splits 0-0)
 FIG 3. Clean false alarms (600 held-out boots, CP1-7): Mahalanobis 54, floor 0
-FIG 4 (One sub-stage shortened (CP3 sub_b)). reduction % : floor / Mahalanobis detection % -> 0: 0/1; 10: 0/1; 20: 0/1; 30: 5/0; 40: 33/0; 50: 50/0; 60: 98/0; 70: 98/0; 80: 99/0; 90: 100/0
-FIG 4 (All three CP3 sub-stages shortened together). reduction % : floor / Mahalanobis detection % -> 0: 0/1; 10: 0/1; 20: 0/1; 30: 5/1; 40: 33/0; 50: 60/0; 60: 100/0; 70: 100/0; 80: 100/0; 90: 100/0
+FIG 4 (One sub-stage shortened (CP3 sub_b)). reduction % : floor / Mahalanobis detection % -> 0: 0/1; 10: 0/1; 20: 0/1; 30: 0/0; 40: 26/0; 50: 33/0; 60: 96/0; 70: 98/0; 80: 99/0; 90: 100/0
+FIG 4 (All three CP3 sub-stages shortened together). reduction % : floor / Mahalanobis detection % -> 0: 0/1; 10: 0/1; 20: 0/1; 30: 0/1; 40: 27/0; 50: 33/0; 60: 100/0; 70: 100/0; 80: 100/0; 90: 100/0
 FIG 5. f=0.20: clean FA 0.0% | untouched-checkpoint alarms 0.0% | worst-fault miss 94.2%
 FIG 5. f=0.25: clean FA 0.0% | untouched-checkpoint alarms 0.0% | worst-fault miss 36.2%
 FIG 5. f=0.30: clean FA 0.0% | untouched-checkpoint alarms 0.0% | worst-fault miss 1.7%

@@ -36,6 +36,7 @@ FAULTS = ["attack", "ft1", "ft2", "ft3", "ft4"]
 NAME = {"attack": "Attack (CP3 b)", "ft1": "FT-1 (CP1 b)", "ft2": "FT-2 (CP3 c)", "ft3": "FT-3 (CP7 a)", "ft4": "FT-4 (CP3 a+b)", "ft5": "FT-5 (CP3 c, +84%)"}
 OWN_CP = {"attack": [3], "ft1": [1], "ft2": [3], "ft3": [7], "ft4": [3], "ft5": [3]}
 CELLS = {"attack": [(3, 1)], "ft1": [(1, 1)], "ft2": [(3, 2)], "ft3": [(7, 0)], "ft4": [(3, 0), (3, 1)], "ft5": [(3, 2)]}
+F_FW = 0.45  # floor fraction compiled into src/floor_table.h
 data_lines = []
 
 
@@ -115,8 +116,8 @@ def fig1():
                 ax.text(x, np.median(r) * 1.35, "FT-5", ha="center", va="bottom", fontsize=8.5, color=INK2,
                         bbox=dict(boxstyle="round,pad=0.15", fc=SURFACE, ec="none", alpha=0.85))
     ax.axhline(1.0, color=BASE, lw=0.8, zorder=1)
-    ax.axhline(0.5, color=INK2, lw=1.1, ls=(0, (4, 3)), zorder=4)
-    ax.text(len(CPS) * 4 - 2.2, 0.5 * 1.06, "floor: 0.5 x median", ha="right", va="bottom", fontsize=9, color=INK2)
+    ax.axhline(F_FW, color=INK2, lw=1.1, ls=(0, (4, 3)), zorder=4)
+    ax.text(len(CPS) * 4 - 2.2, F_FW * 1.06, f"floor: {F_FW} x median", ha="right", va="bottom", fontsize=9, color=INK2)
     ax.set_yscale("log")
     ax.set_ylim(0.03, 12)
     ax.set_yticks([0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10])
@@ -162,8 +163,8 @@ def fig2():
     lb = np.logspace(np.log10(0.05), np.log10(8), 45)
     a2.hist(cr, bins=lb, color=BLUE, alpha=0.75, label="clean boots")
     a2.hist(fr, bins=lb, color=ORANGE, alpha=0.75, label="attack boots")
-    a2.axvline(0.5, color=INK2, lw=1.1, ls=(0, (4, 3)))
-    a2.text(0.5 / 1.08, a2.get_ylim()[1] * 0.92, "floor\n0.5 x median", fontsize=9, color=INK2, va="top", ha="right")
+    a2.axvline(F_FW, color=INK2, lw=1.1, ls=(0, (4, 3)))
+    a2.text(F_FW / 1.08, a2.get_ylim()[1] * 0.92, f"floor\n{F_FW} x median", fontsize=9, color=INK2, va="top", ha="right")
     a2.set_xscale("log")
     a2.set_xticks([0.1, 0.2, 0.5, 1, 2, 5])
     a2.set_xticklabels(["0.1x", "0.2x", "0.5x", "1x", "2x", "5x"])
@@ -173,18 +174,18 @@ def fig2():
     a2.set_title("Floor: attack sits well below the clean range", pad=24)
     a2.legend(loc="lower left", bbox_to_anchor=(0, 1.0), ncol=2, handlelength=1, fontsize=9.5)
     note(f"FIG 2 right. CP3 sub_b ratio to clean median: clean min {cr.min():.2f}, attack median {np.median(fr):.2f}, "
-         f"attack highest boot {fr.max():.2f}; attack boots below 0.5: {(fr < 0.5).sum()} of 300; clean boots below 0.5: {(cr < 0.5).sum()}")
+         f"attack highest boot {fr.max():.2f}; attack boots below {F_FW}: {(fr < F_FW).sum()} of 300; clean boots below {F_FW}: {(cr < F_FW).sum()}")
     save(fig, "fig2_mahalanobis_vs_floor_cp3.png")
 
 
 # ------------------------------------------------------------------ fig 3
 def fig3():
-    methods = ["Mahalanobis, one-shot (the firmware rule)", "Floor at 0.5 x median"]
+    methods = ["Mahalanobis, one-shot (per-checkpoint Gaussian)", f"Floor at {F_FW} x median"]
     det = {m: {k: [] for k in FAULTS + ["ft5"]} for m in methods}
     fa = {m: 0 for m in methods}
     for tr, te in SPLITS:
         mm = fit_md(D["clean"][tr])
-        L = 0.5 * np.median(D["clean"][tr], axis=0)
+        L = F_FW * np.median(D["clean"][tr], axis=0)
         fa[methods[0]] += md_alarm(mm, D["clean"][te], CPS).sum()
         fa[methods[1]] += floor_alarm(L, D["clean"][te], CPS).sum()
         for k in FAULTS + ["ft5"]:
@@ -224,7 +225,7 @@ def fig3():
 # ------------------------------------------------------------------ fig 4
 def fig4():
     rs = np.arange(0, 0.951, 0.05)
-    models = [(fit_md(D["clean"][tr]), 0.5 * np.median(D["clean"][tr], axis=0), te) for tr, te in SPLITS]
+    models = [(fit_md(D["clean"][tr]), F_FW * np.median(D["clean"][tr], axis=0), te) for tr, te in SPLITS]
     fig, axes = plt.subplots(1, 2, figsize=(11.5, 4.6), sharey=True)
     for ax, (title, cols) in zip(axes, [("One sub-stage shortened (CP3 sub_b)", [1]), ("All three CP3 sub-stages shortened together", [0, 1, 2])]):
         res = {"md": [], "fl": []}
@@ -238,7 +239,7 @@ def fig4():
                 tot += len(te)
             res["md"].append(100 * hit_m / tot)
             res["fl"].append(100 * hit_f / tot)
-        ax.plot(rs * 100, res["fl"], color=FLOOR, lw=2, marker="o", ms=4, mfc=SURFACE, mew=1.5, label="Floor at 0.5 x median")
+        ax.plot(rs * 100, res["fl"], color=FLOOR, lw=2, marker="o", ms=4, mfc=SURFACE, mew=1.5, label=f"Floor at {F_FW} x median")
         ax.plot(rs * 100, res["md"], color=MAHA, lw=2, marker="o", ms=4, mfc=SURFACE, mew=1.5, label="Mahalanobis, one-shot")
         ax.set_title(title, fontsize=11, pad=8)
         ax.set_xlabel("synthetic reduction of the sub-stage time (%)")
@@ -270,21 +271,28 @@ def fig5():
         fa.append(100 * fa_n / 600)
         xb.append(100 * xb_n / 6000)
         miss.append(100 * max(ms.values()) / 1200)
-    fig, ax = plt.subplots(figsize=(10.5, 5.0))
-    ax.axvspan(0.30, 0.50, color=FLOOR, alpha=0.10, lw=0)
-    ax.text(0.40, 101, "no false alarms, at most 1.7% missed", ha="center", va="top", fontsize=9, color=INK2)
-    for ys, ls, mk in [(miss, "-", "o"), (xb, (0, (5, 2)), "s"), (fa, (0, (1, 1.5)), "^")]:
-        ax.plot(fs, ys, color=FLOOR, lw=2, ls=ls, marker=mk, ms=4.5, mfc=SURFACE, mew=1.5)
-    ax.text(0.205, miss[0] - 4, "faults missed (worst of the five)", color=INK2, fontsize=9.5, ha="left", va="top")
-    ax.text(0.7, xb[-1] + 3, "alarms at the checkpoints a fault does not touch", color=INK2, fontsize=9.5, ha="right", va="bottom")
-    ax.text(0.35, 5.5, "clean false alarms (none until f = 0.70)", color=INK2, fontsize=9.5, ha="left", va="bottom")
-    ax.set_xlabel("floor fraction f (alarm if a sub-stage < f x clean median)")
-    ax.set_ylabel("boots (%)")
-    ax.set_ylim(-3, 103)
-    ax.set_title("Choosing f: below 0.3 faults slip through, above 0.5 untouched checkpoints start to alarm", pad=10, fontsize=11)
+    # Three small panels with their own y scales: on one shared 0-100% axis the two
+    # false-alarm curves sit on top of each other along the floor.
+    fig, axes = plt.subplots(1, 3, figsize=(12.5, 4.4), sharex=True)
+    panels = [("Faults missed (worst of the five)", miss, 105),
+              ("Alarms at checkpoints the fault does not touch", xb, 11),
+              ("False alarms on clean boots", fa, 2.2)]
+    for ax, (ttl, ys, top) in zip(axes, panels):
+        ax.axvspan(0.30, 0.50, color=FLOOR, alpha=0.10, lw=0)
+        ax.axvline(F_FW, color=INK2, lw=1.1, ls=(0, (4, 3)))
+        ax.plot(fs, ys, color=FLOOR, lw=2, marker="o", ms=4.5, mfc=SURFACE, mew=1.5)
+        for fx in [0.3, 0.5, 0.7]:
+            v = ys[list(fs).index(fx)]
+            ax.annotate(f"{v:.1f}%", xy=(fx, v), xytext=(0, 9), textcoords="offset points", ha="center", fontsize=9, color=INK)
+        ax.set_ylim(-0.04 * top, top)
+        ax.set_title(ttl, fontsize=10.5, pad=8)
+        ax.set_xlabel("floor fraction f")
+        ax.set_xticks([0.2, 0.3, 0.4, 0.5, 0.6, 0.7])
+    axes[0].set_ylabel("boots (%)")
+    fig.suptitle("Choosing f: below 0.3 faults slip through, above 0.5 untouched checkpoints start to alarm", x=0.07, ha="left", y=1.03, fontsize=12, fontweight="bold")
     for f, a, b, c in zip(fs, fa, xb, miss):
         note(f"FIG 5. f={f:.2f}: clean FA {a:.1f}% | untouched-checkpoint alarms {b:.1f}% | worst-fault miss {c:.1f}%")
-    fig.text(0.07, -0.04, "Shaded: f = 0.30 to 0.50, where clean false alarms and untouched-checkpoint alarms are both 0 and at most 1.7% of faults are missed. "
+    fig.text(0.07, -0.04, f"Shaded: f = 0.30 to 0.50. Dashed line: f = {F_FW}, the value compiled into the firmware. "
              "Held-out, pooled over 4 splits (600 clean boots; 6000 boots from the 5 fault builds; 1200 per fault).", fontsize=8.5, color=MUTED)
     save(fig, "fig5_floor_fraction_sweep.png")
 

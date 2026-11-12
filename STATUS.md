@@ -5,20 +5,61 @@ Single source of truth for results, effort, scope versus proposal, and limitatio
 **Project:** PMU-Based Statistical Detection of Fault Injection Attacks in Secure Boot
 **Student:** Ayush Ranjan (EE24M504)
 **Phase:** 1 (QEMU simulation and algorithm development), ready for review
-**Last updated:** 2026-11-10
+**Last updated:** 2026-11-12
+
+**Two firmware generations are described here; do not mix their numbers.** The *frozen 4-checkpoint firmware* (git tag `phase1-review-freeze-2`) has the 1000-boot Mahalanobis result and everything under "Frozen firmware" below. The *current 8-checkpoint firmware* (branch `main`) has a different detector and the results in "Current firmware (8 checkpoints)".
 
 ---
 
 ## 1. What exists
 
-- Bare-metal Cortex-M33 bootrom stub running in QEMU (`mps2-an505`), with four boot stages and timing checkpoints (SysTick cycle counter).
-- Python pipeline: data collection, Gaussian model fit, CUSUM simulation with synthetic attacks, ROC analysis.
-- Firmware-embedded detector in fixed-point Q16.16 (Mahalanobis distance plus CUSUM). It runs after checkpoint 2 and halts boot on alarm. Design: [FIRMWARE_DETECTOR.md](FIRMWARE_DETECTOR.md).
-- Calibration script that emits the C model parameters, and an automated detection test script.
+- Bare-metal Cortex-M33 bootrom stub running in QEMU (`mps2-an505`), with timing checkpoints (SysTick cycle counter): four boot stages in the frozen firmware, eight checkpoints in the current one.
+- Python pipeline: data collection, Gaussian model fit, CUSUM simulation with synthetic attacks, ROC analysis, held-out detector comparison.
+- Current firmware: two detectors. A **floor check** (alarm if a sub-stage is below 0.45 x its clean median) after every checkpoint CP1 to CP7, which halts the boot; and the fixed-point (Q16.16) **Mahalanobis one-shot rule** at CP3, which only warns. Design: [FIRMWARE_DETECTOR.md](FIRMWARE_DETECTOR.md).
+- Frozen firmware: the Mahalanobis rule alone, after checkpoint 2, halting on alarm.
+- Six fault builds (compile-time skipped loops and one extra loop), calibration and validation scripts, and a Python mirror of the firmware rules ([FAULT_MODELS.md](FAULT_MODELS.md)).
 
 ## 2. Results
 
-### Firmware detector, 1000-boot validation
+### Current firmware (8 checkpoints): validation on fresh boots
+
+Seven builds (clean, five faults, the original attack) x 300 boots each, collected with the non-halting build on the final binary (`data/val_*.csv`, host load average 1.0 to 1.5, QEMU 8.2.2). Calibration used a separate set of 300 clean boots (`data/cal_clean.csv`). Report: [results/validation_8cp.txt](results/validation_8cp.txt); script: `scripts/validate_firmware.py`. The Python mirror of the rules agreed with what the firmware printed on all 2100 boots.
+
+| | Floor rule (halts) | Mahalanobis at CP3 (warns) |
+|---|---|---|
+| Clean boots with a false alarm | 0 / 300 (95% CI 0 to 1.3%) | 17 / 300 (5.7%, CI 3.6 to 8.9%) |
+| Attack, CP3 sub_b removed | 299 / 300 | 300 / 300 |
+| FT-1, CP1 sub_b removed | 299 / 300 | not monitored |
+| FT-2, CP3 sub_c removed | 300 / 300 | 300 / 300 |
+| FT-3, CP7 sub_a removed | 298 / 300 | not monitored |
+| FT-4, CP3 sub_a and sub_b removed | 300 / 300 | 300 / 300 |
+| FT-5, CP3 sub_c +84% (extra work) | 0 / 300 (cannot see it) | 300 / 300 |
+
+How to read it honestly:
+- The floor rule has the threshold chosen (F = 0.45) after seeing the fault data. The validation set is fresh, but the faults and builds are the same kinds, so it checks the calibration, not the choice of rule. Usable F is roughly 0.30 to 0.50 (offline sweep, [results/detector_comparison.txt](results/detector_comparison.txt)).
+- The faults are whole-loop removals (about 80 to 90% shorter sub-stage). The floor rule catches reductions of roughly 55% or more reliably and misses reductions below about 30% (synthetic sweep). QEMU cannot produce partial skips (ISSUE-012), so no firmware severity curve exists.
+- 15 of the 17 Mahalanobis false alarms on clean boots had a CP3 sub-stage above 1.5x the median (timing spikes). That is why Mahalanobis only warns: halting on it would stop about 6% of good boots. Why it fails here and when it worked: [docs/MAHALANOBIS_ANALYSIS.md](docs/MAHALANOBIS_ANALYSIS.md).
+- Faults were injected at CP1, CP3 and CP7. The floor check at CP2, CP4, CP5 and CP6 was exercised by clean boots only (no false alarms), not by a fault.
+- The timer guard (skip the checks when SysTick readings are inconsistent) never fired in these runs, so that path is untested in firmware (ISSUE-019).
+- Footprint (`-O0`): floor module 140 bytes, Mahalanobis module 1060 bytes, whole firmware 4692 bytes text.
+
+**Real halting build:** The validation above used `-DCOLLECT_MODE`, so the detector printed alarms but never halted. To test the actual fail-stop response, each build was compiled without that macro and run 300 times (`scripts/test_halting_build.sh`, 2026-11-12, load 1.09 to 1.34 median). Halted = the floor rule stopped the boot (searching for "HALTING BOOT"); completed+W = reached `BOOT COMPLETE` after a Mahalanobis warning.
+
+| Build | Halted (floor) | Completed clean | Completed+W (Maha) | Failed (no output) |
+|-------|---------------:|----------------:|-------------------:|-------------------:|
+| clean | 0 | 293 | 7 | 0 |
+| attack | 300 | 0 | 0 | 0 |
+| ft1 | 300 | 0 | 0 | 0 |
+| ft2 | 300 | 0 | 0 | 0 |
+| ft3 | 299 | 1 | 0 | 0 |
+| ft4 | 300 | 0 | 0 | 0 |
+| ft5 | 0 | 0 | 300 | 0 |
+
+The clean false-alarm rate for Mahalanobis (7/300 = 2.3%, Wilson 95% CI 1.1 to 4.7%) is tighter here than in collect mode (5.7%), probably because the overhead of the halt check reduces timing noise. The floor rule had 0 false alarms. FT-3 (CP7 fault) had 1 escape in 300 boots, likely a timing spike in the clean direction. FT-5 (extra loop, longer sub-stage) was caught only by the Mahalanobis warning, as designed.
+
+### Frozen firmware (4 checkpoints, tag `phase1-review-freeze-2`): firmware detector, 1000-boot validation
+
+The numbers in the rest of this section belong to the frozen firmware, built from `data/nominal_boots.csv` (496 clean boots, halting-build collection) and the single `-DGLITCH_ATTACK` fault. Re-running the 8-checkpoint data showed that its 1000/1000 result depended on a training set without timing spikes ([docs/MAHALANOBIS_ANALYSIS.md](docs/MAHALANOBIS_ANALYSIS.md), ISSUE-017).
 
 Run with `N=1000 bash scripts/test_firmware_detector.sh`. Raw log: [results/validation_1000.log](results/validation_1000.log).
 
@@ -200,13 +241,23 @@ Not yet measured. Estimate in earlier documents (about 350 cycles) is unverified
 
 ## 3. Data
 
+8-checkpoint firmware (current):
+
+| File | Contents |
+|------|----------|
+| `data/ds1_{clean,attack,ft1..ft5}.csv`, `ds1_meta.txt` | First 8-checkpoint dataset: 7 builds x 300 boots, 8 rows per boot (`boot_id,cp,elapsed,sub_a,sub_b,sub_c`). Provenance (QEMU version, build hashes, load) in `ds1_meta.txt`. Collected on 2026-11-12 from commit `db57931`, which is the same 8-checkpoint stage code but has no floor check and no timer guard; it is the basis of the offline analysis. |
+| `data/cal_clean.csv`, `cal_clean_boots.csv` | 300 clean boots of the final binary, used to calibrate the floor table and the Mahalanobis constants. |
+| `data/val_*.csv`, `val_*_boots.csv`, `val_meta.txt` | Validation set: 7 builds x 300 fresh boots on the final binary. `*_boots.csv` holds the alarms the firmware printed and the host load for each boot. |
+
+Frozen 4-checkpoint firmware:
+
 | File | Contents |
 |------|----------|
 | `data/nominal_boots.csv` | 496 clean boots, 4 checkpoints each (1985 lines with header). 500 collection runs were made; boots 26, 116, 386 and 479 are absent. Probable cause (consistent with the data, not proven): `make collect` runs the halting firmware, so an alarmed boot prints no data block and is dropped. If so, the training set excludes timing spikes by construction (see "False alarms" in Section 2). Re-collected 2026-11-09. |
 | `data/attack_boots.csv` | 50 boots with the glitch macro on (`make collect-attack`, built with `-DCOLLECT_MODE` so the detector does not halt and telemetry is still printed). 201 lines with header. Re-collected 2026-11-09. |
 | `data/model.npz` | Model for the Python sequential detector, fitted on the CP2 features of `nominal_boots.csv` (496 boots; the 2.5 x IQR outlier filter removed none). Rebuilt 2026-11-09. |
 
-Embedded firmware parameters live only in `src/cusum_detector.c`. `scripts/calibrate_firmware.py` fits them from the same `nominal_boots.csv` (mean and inverse covariance, plus a one-shot threshold, see [FIRMWARE_DETECTOR.md](FIRMWARE_DETECTOR.md)) and they are not copied into any document. The firmware does not read `model.npz`; the sequential `k` and `H` in `model.npz` are used only by the Python simulation.
+Embedded firmware parameters live only in `src/cusum_detector.c` (Mahalanobis) and `src/floor_table.h` (floor), generated by `scripts/calibrate_firmware.py` and `scripts/calibrate_floor.py` (see [FIRMWARE_DETECTOR.md](FIRMWARE_DETECTOR.md)); they are not copied into any document. The current constants were fitted on `data/cal_clean.csv`, not on `nominal_boots.csv`. The firmware does not read `model.npz`; the sequential `k` and `H` in `model.npz` are used only by the Python simulation.
 
 ## 4. Effort
 
@@ -273,9 +324,9 @@ Proposal: [Phase_0_Proposal.txt](Phase_0_Proposal.txt).
 |----------|--------|-----------|
 | Simulation environment with scripted fault injection (NOP substitution plugin) | Partial | QEMU plus a compile-time macro that skips a loop. No QEMU plugin. |
 | 500 clean boots | Done, with a note | 500 collection runs, 496 boots recorded (4 missing, probably dropped alarm boots; not proven). |
-| 10,000 glitched boots at 5 severity levels | Not done | 50 collected boots plus a 1000-boot detection test at a single severity. Five severity levels exist only in the Python simulation. |
-| 5-dimensional PMU vectors at 10 checkpoints | Partial | 3-dimensional sub-stage timing vectors, 4 checkpoints, only checkpoint 2 monitored. SysTick is the only counter. |
-| CUSUM log-likelihood detector | Done, with a note | Mahalanobis-distance CUSUM. The firmware calls it once per boot, so it acts as a single-observation threshold test. Accumulation across checkpoints is not exercised yet. |
+| 10,000 glitched boots at 5 severity levels | Not done | 6 fault builds x 300 boots (1800 faulted boots in the first dataset, 1800 more in the validation set), all whole-loop faults at one severity each. Severity levels exist only in the Python simulation (QEMU cannot do partial skips, ISSUE-012). |
+| 5-dimensional PMU vectors at 10 checkpoints | Partial | 3-dimensional sub-stage timing vectors, 8 checkpoints (7 monitored), faults injected at 3 of them. SysTick is the only counter. |
+| CUSUM log-likelihood detector | Done, with a note | Mahalanobis-distance CUSUM, called once per boot at CP3 (a single-observation threshold test). On the 8-checkpoint data it falsely alarms on 5.7% of clean boots, so it only warns; a per-sub-stage floor check halts the boot instead. Accumulation across checkpoints was tested offline and not adopted ([docs/MAHALANOBIS_ANALYSIS.md](docs/MAHALANOBIS_ANALYSIS.md)). |
 | Formal detection bounds (Stein's Lemma) | Not done | Threshold calibrated empirically. |
 | Fixed-point C port (proposed for Phase 2) | Done early | Q16.16, no FPU. |
 | BOOTROM integration (proposed for Phase 2) | Done early | Halts boot on alarm. |
@@ -287,11 +338,12 @@ Proposal: [Phase_0_Proposal.txt](Phase_0_Proposal.txt).
 
 1. **Timing noise.** QEMU host jitter gives a coefficient of variation of about 10%, and the features are not Gaussian ([docs/GAUSSIAN_ASSUMPTION_ANALYSIS.md](docs/GAUSSIAN_ASSUMPTION_ANALYSIS.md)).
 2. **QEMU timing does not track executed work.** SysTick follows host time, so partial loop skips do not change `sub_b` proportionally and no firmware severity sweep is possible (Section 2). Only the full-loop fault is detectable in firmware.
-3. **Mild glitches are missed.** The Python simulation and the one-shot baselines miss glitches below about 10% severity, and the shipped firmware threshold (H = 10.84) needs roughly a 40 to 50% `sub_b` reduction before it alarms (Section 2, "Sensitivity of the shipped firmware threshold").
-4. **Simulated fault.** One macro-based fault; no skip, repeat or register-corruption variants.
-5. **One monitored checkpoint.** Attacks on checkpoints 1 and 3 are not covered.
-6. **Counter.** SysTick timing, not DWT or PMU event counters.
-7. **False alarms from timing spikes.** Two runs with the same threshold show 14 and 9 false alarms per 1000 clean boots (pooled 23 / 2000, about 1%). Each is a large one-sided slowdown of one or two sub-stages (z up to +68.9, MD 11.8 to 171.5 against H = 10.84), likely host pauses of the emulator (unconfirmed). The training set probably excludes such boots (Section 3). See Section 2 and ISSUE-013. Phase 2 will re-measure on hardware.
+3. **Mild glitches are missed.** The Python simulation and the one-shot baselines miss glitches below about 10% severity. The frozen firmware threshold (H = 10.84) needs roughly a 40 to 50% `sub_b` reduction before it alarms (Section 2, "Sensitivity of the shipped firmware threshold"). The current floor rule needs roughly 55% or more (synthetic sweep, [results/detector_comparison.txt](results/detector_comparison.txt) section 4) and misses reductions below about 30%.
+4. **Simulated faults.** Six macro-based faults (five loop removals and one extra loop); no electrical glitching, no register corruption.
+5. **Coverage.** The floor check watches CP1 to CP7, but faults were injected at CP1, CP3 and CP7 only. Longer sub-stages (FT-5) are seen only by the Mahalanobis warning at CP3, which does not halt (ISSUE-018).
+6. **Counter.** SysTick timing, not DWT or PMU event counters. Under heavy host load SysTick wraps; the firmware then skips the checks for that checkpoint (fail open, ISSUE-019), so validate on an idle host.
+7. **False alarms from timing spikes.** On the frozen firmware, two runs with the same threshold show 14 and 9 false alarms per 1000 clean boots (pooled 23 / 2000, about 1%). Each is a large one-sided slowdown of one or two sub-stages (z up to +68.9, MD 11.8 to 171.5 against H = 10.84), likely host pauses of the emulator (unconfirmed). The training set probably excludes such boots (Section 3). See Section 2 and ISSUE-013. Phase 2 will re-measure on hardware. On the 8-checkpoint firmware the Mahalanobis rule falsely alarms on 5.7% of clean boots and the floor rule on none (ISSUE-017).
+8. **Per-build calibration.** The same code runs at different speeds in different binaries (up to 28%) and across runs (up to 18%); recalibrate after every build and keep F at or below 0.50 (ISSUE-016).
 
 Open and resolved issues: [KNOWN_ISSUES.md](KNOWN_ISSUES.md) (limitations 2 and 7 are ISSUE-012 and ISSUE-013).
 

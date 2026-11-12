@@ -17,9 +17,27 @@ Median over 300 boots of the fault build against the median of the clean build (
 | `app_ft4.elf` | `GLITCH_FT4_CP2_DOUBLE` | CP3 sub_a and sub_b | 742 and 828 | 136 and 91 | -82% and -89% |
 | `app_ft5.elf` | `GLITCH_FT5_CORRUPT_FLAG` | CP3 sub_c (extra loop) | 572 | 1051 | +84% |
 
-## Detection with a per-checkpoint one-shot threshold
+## Detection by the firmware (fresh validation boots, current code)
 
-Per-checkpoint Gaussian fitted on all 300 clean boots, `H = 1.25 x` the largest clean Mahalanobis distance (the firmware rule). In-sample, computed in Python floating point, not the firmware's fixed-point code.
+300 fresh boots per build (`data/val_*.csv`), collected on the final binary with the calibrated tables, host load average 1.0 to 1.5. "Detected" means the firmware itself printed an alarm at the checkpoint the fault hits. The floor rule is at F = 0.45 (alarm if a sub-stage is below 0.45 x its clean median) and runs at CP1 to CP7; the Mahalanobis rule runs at CP3 only. Intervals are 95% Wilson. Source: [results/validation_8cp.txt](results/validation_8cp.txt); the Python mirror agreed with the firmware on all 2100 boots.
+
+| Build | Fault checkpoint | Floor rule | Mahalanobis rule |
+|-------|-----------------:|-----------:|-----------------:|
+| attack | CP3 | 299 / 300 | 300 / 300 |
+| ft1 | CP1 | 299 / 300 | not monitored |
+| ft2 | CP3 | 300 / 300 | 300 / 300 |
+| ft3 | CP7 | 298 / 300 | not monitored |
+| ft4 | CP3 | 300 / 300 | 300 / 300 |
+| ft5 | CP3 | 0 / 300 (cannot see a longer sub-stage) | 300 / 300 |
+| clean (false alarms) | | 0 / 300 (0 to 1.3%) | 17 / 300 (5.7%, 3.6 to 8.9%) |
+
+- The Mahalanobis column for ft1 would show 136 alarms at CP3 in the ft1 build, but that is the build's different CP3 timing (see "Untouched sub-stages differ between builds" below), not a detection of a CP1 fault.
+- The floor rule halts the boot; the Mahalanobis rule only warns, because it falsely alarms on 5.7% of clean boots (15 of the 17 are timing spikes). Why it fails and how the floor avoids it: [docs/MAHALANOBIS_ANALYSIS.md](docs/MAHALANOBIS_ANALYSIS.md). Design: [FIRMWARE_DETECTOR.md](FIRMWARE_DETECTOR.md).
+- Held-out offline results on the same kind of data, and the synthetic severity sweep, are in [results/detector_comparison.txt](results/detector_comparison.txt). Faults were injected at CP1, CP3 and CP7 only; the floor check at CP2, CP4, CP5 and CP6 is exercised only by clean boots (no false alarms) and by simulation.
+
+## Detection with a per-checkpoint one-shot threshold (offline, superseded)
+
+Earlier analysis on the first DS-1 data, before the firmware was changed. Per-checkpoint Gaussian fitted on all 300 clean boots, `H = 1.25 x` the largest clean Mahalanobis distance. In-sample, computed in Python floating point, not the firmware's fixed-point code.
 
 | Build | Checkpoint | Median MD | H | Detected |
 |-------|-----------:|----------:|--:|---------:|

@@ -471,14 +471,16 @@ if (cusum_update(&detector, cp2_features, 2)) {
 
 ### ISSUE-009: Single Checkpoint Monitoring
 
-**Status:** 🟢 Open  
+**Status:** 🟡 Partly addressed (2026-11-12)  
 **Severity:** Low  
 **Component:** Coverage  
 
 **Description:**
-Currently only monitors CP2 (signature verify). Attacker could target CP1 (memory) or CP3 (key derivation).
+The frozen 4-checkpoint firmware only monitored CP2 (signature verify). Attacker could target other stages.
 
-**Solution:** Multi-checkpoint detector (see ISSUE-003)  
+**Update 2026-11-12:** the 8-checkpoint firmware runs the floor check at CP1 to CP7, and it detects faults at CP1, CP3 and CP7 (298 to 300 of 300 each, [results/validation_8cp.txt](results/validation_8cp.txt)). The Mahalanobis rule still monitors CP3 only: extending it to all seven checkpoints gave about 9% false alarms on held-out clean boots (ISSUE-017). CP0 is not checked, and faults were injected at three of the seven checkpoints only.
+
+**Solution:** Floor check at every checkpoint (done); no Mahalanobis fusion (see ISSUE-017)  
 **Priority:** P2 - Phase 2  
 **Effort:** 50 hours
 
@@ -572,7 +574,9 @@ SysTick in QEMU follows host time, not executed instructions (ISSUE-012). A host
 `make collect` runs the halting firmware, so an alarmed boot prints no data block and is dropped; the four absent ids (26, 116, 386, 479) are probably such boots. If so, the training set was filtered by the detector, and the 1.25x margin was fitted to a sample without spikes. Test: collect with a non-halting build and compare.
 
 **Consequence for the detector:**
-These are timing spikes and not a calibration problem; raising H would not remove the large ones (MD up to 171, against 19 to 32 for the real glitch). A signed rule that alarms only on a low `sub_b` would not have alarmed on any of the 23, but this is untested.
+These are timing spikes and not a calibration problem; raising H would not remove the large ones (MD up to 171, against 19 to 32 for the real glitch). A signed rule that alarms only on a low `sub_b` would not have alarmed on any of the 23.
+
+**Update 2026-11-12:** tested on the 8-checkpoint firmware. The floor rule, which can only alarm on a short sub-stage, had 0 false alarms in 300 clean boots (95% interval 0 to 1.3%), while the retrained Mahalanobis rule alarmed on 17 of 300 (5.7%); 15 of the 17 had a CP3 sub-stage above 1.5x the median. The non-halting collection also showed that spikes are common when no boot is dropped: 42 of 300 clean boots (14%) have a sub-stage above 1.5x its median somewhere in CP1 to CP7 ([docs/MAHALANOBIS_ANALYSIS.md](docs/MAHALANOBIS_ANALYSIS.md)). The selection-effect hypothesis gained support: an earlier 500-boot collection of the pre-detector firmware (commit 051046f, nothing could be dropped) has 5 boots with a CP2 sub-stage above 1.5x the median, against 0 of 496 in the halting-firmware collection. Still not proven, because the two collections use different builds.
 
 **Instrumentation (2026-11-10):**
 On alarm the firmware prints an `ALARM_FEATURES,<sub_a>,<sub_b>,<sub_c>` line, and `scripts/test_firmware_detector.sh` appends each false alarm to `results/false_alarms.csv` and saves its full output as `results/false_alarms/boot_<i>.txt`. The script clears that folder at the start of every run, so copy it after the full run before starting any other test.
@@ -637,21 +641,92 @@ The shipped detector reliably catches the simulated fault (sub-stage B loop remo
 **Phase 2 mitigation:**
 Test one-sided `sub_b` threshold (arithmetic shows it would catch this case: threshold `sub_b` < 459 against observed 90). Multi-checkpoint fusion may also help (ISSUE-009).
 
-**Priority:** P2 - Phase 2  
+**Update 2026-11-12:** the floor rule is this one-sided test. On the 8-checkpoint firmware it detects FT-4 (CP3 sub_a and sub_b both removed) in 300 of 300 boots. A synthetic reduction of all three CP3 sub-stages together is flagged in 100% of held-out clean boots at 55% or more reduction ([results/detector_comparison.txt](results/detector_comparison.txt), section 4). No build removes all three loops on the 8-checkpoint firmware, so the full whole-stage skip has been simulated, not run on the new floor rule.
+
+**Priority:** P2 - Phase 2 (re-test with a real all-three-loops build)  
 **Effort:** documented
+
+---
+
+## Issues Found During the 8-Checkpoint Expansion (2026-11-12)
+
+### ISSUE-016: Identical Code Runs at Different Speeds Across Builds and Runs
+
+**Status:** 📋 DOCUMENTED (cause not identified)  
+**Severity:** Medium  
+**Component:** Platform (QEMU) / calibration  
+
+**Symptoms:**
+The same C loop takes different time in different binaries: CP3 `sub_b` has a median of 828 in the clean, FT-2, FT-3 and FT-5 builds but 598 in the FT-1 build. An unchanged sub-stage in a fault build ran down to 0.51 of the clean-build median. Rebuilding the same sources shifted CP3 `sub_b` by up to 22%, and re-running one binary five minutes later shifted a sub-stage median by up to 18%.
+
+**Impact:**
+A clean-versus-fault comparison across two binaries mixes the fault with this effect. The floor fraction has little headroom: at F = 0.55, 30 of 3000 boots of the fault builds alarm at checkpoints the fault does not touch; at F <= 0.50 none do. Tables and constants must be calibrated on the binary under test.
+
+**Cause:** not identified (candidates: code alignment, QEMU translation-block behaviour, host frequency or load).  
+**Mitigation:** recalibrate after every build (`scripts/calibrate_floor.py`); keep F <= 0.50; validate on a fresh set.  
+**Priority:** P2 - Phase 2 (DWT counters on hardware)
+
+---
+
+### ISSUE-017: One-Shot Mahalanobis Fails When the Training Set Contains Timing Spikes
+
+**Status:** 📋 DOCUMENTED (analysis complete, mitigated by the floor rule)  
+**Severity:** High for the rule, Low for the project  
+**Component:** Detector design  
+
+**Symptoms:**
+With the 8-checkpoint data, a per-checkpoint Gaussian with `H = 1.25 x max clean MD` detected 0 to 5 of 300 skipped-loop boots in most held-out splits, and 54 of 600 held-out clean boots alarmed when all seven checkpoints were monitored. The score ranks faults well (AUC 0.97 to 0.98); the threshold does not separate them from spiked clean boots.
+
+**Cause:** about 14% of clean boots contain an upward spike. A two-sided distance counts a spike like a skipped loop, and the threshold is set by the most extreme training boot.
+
+**Evidence and numbers:** [docs/MAHALANOBIS_ANALYSIS.md](docs/MAHALANOBIS_ANALYSIS.md), [results/mahalanobis_failure_analysis.txt](results/mahalanobis_failure_analysis.txt). It can be revived at one checkpoint by removing spiked boots from training (about 2% false alarms), not at all seven (16%).
+
+**Resolution:** the floor rule halts the boot; the Mahalanobis rule at CP3 only warns (it is the only rule that sees FT-5).  
+**Priority:** done for Phase 1
+
+---
+
+### ISSUE-018: Lower Bound Cannot See Longer Sub-Stages (FT-5)
+
+**Status:** 🟡 Open (documented as a Phase 1 limitation)  
+**Severity:** Medium  
+**Component:** Detection coverage  
+
+**Description:**
+FT-5 adds an extra loop (CP3 `sub_c` +84%). The floor rule cannot detect it by design (0 of 300). The Mahalanobis warning at CP3 detected it in 300 of 300 boots but does not halt the boot, so no halting rule covers it. A ceiling at 1.5x the median would detect 88% of FT-5 but alarms on 14% of clean boots across the 21 sub-stages (1% at CP3 `sub_c` alone).
+
+**Phase 2:** a ceiling at selected sub-stages, or a repeat-confirm rule. On hardware the spike rate should drop (DWT counts executed work).  
+**Priority:** P2 - Phase 2
+
+---
+
+### ISSUE-019: Timer Guard Fails Open on Invalid SysTick Readings
+
+**Status:** 📋 DOCUMENTED (untested in firmware)  
+**Severity:** Medium  
+**Component:** Firmware / QEMU platform  
+
+**Description:**
+Under heavy host CPU load, QEMU's SysTick wraps or stalls: in a 60-boot load test, 28 boots had elapsed pinned at the 24-bit maximum and zero sub-stage readings, which a floor rule reads as a skipped loop. `timer_ok()` in `main.c` rejects such checkpoints and skips both checks for them (prints `TIMER_INVALID,<cp>`).
+
+**Consequence:** a fault that also corrupts the timer would pass the guarded checkpoint. The guard did not fire in any validation boot (idle host, load average 1.0 to 1.5), so the skip path has not been exercised in the firmware; only the load test (run before the guard existed) shows the condition it catches.
+
+**Phase 2:** DWT cycle counters do not wrap this way. Validate only on an idle host in Phase 1.  
+**Priority:** P2 - Phase 2
 
 ---
 
 ## Issue Statistics
 
-**Total Issues:** 15  
+**Total Issues:** 19  
 **Resolved:** 5 (ISSUE-001, ISSUE-004, ISSUE-005, ISSUE-008, ISSUE-014)  
-**Documented limitation:** 3 (ISSUE-002, ISSUE-013, ISSUE-015)  
+**Documented limitation:** 7 (ISSUE-002, ISSUE-013, ISSUE-015, ISSUE-016, ISSUE-017, ISSUE-018, ISSUE-019)  
 **Open:** 7 (ISSUE-003, ISSUE-006, ISSUE-007, ISSUE-009, ISSUE-010, ISSUE-011, ISSUE-012)
 
 **By severity (open and documented):**
-- **Medium:** ISSUE-002, ISSUE-003, ISSUE-007, ISSUE-009, ISSUE-012, ISSUE-013, ISSUE-015
-- **Low:** ISSUE-006, ISSUE-010, ISSUE-011
+- **High:** ISSUE-017 (for the Mahalanobis rule only; mitigated by the floor rule)
+- **Medium:** ISSUE-002, ISSUE-003, ISSUE-007, ISSUE-012, ISSUE-013, ISSUE-015, ISSUE-016, ISSUE-018, ISSUE-019
+- **Low:** ISSUE-006, ISSUE-009 (partly addressed), ISSUE-010, ISSUE-011
 
 **Phase 1 blockers:** ISSUE-001, ISSUE-004, ISSUE-008 and ISSUE-014 are fixed. Remaining items are limitations stated in STATUS.md Section 6.
 
@@ -676,6 +751,7 @@ See [STATUS.md](STATUS.md) Sections 6 and 7 for the limitations and the Phase 2 
 | 1.6 | 2026-11-10 | ISSUE-013 documented (mechanism, Phase 2 resolution); ISSUE-014 added and resolved (overflow bug); dataset size 496; condition number 33.5 | System |
 | 1.7 | 2026-11-10 | Corrections after external audit: Shapiro-Wilk and skew values, false-alarm ranges (23 alarms), selection-effect note, sweep table moved to STATUS.md, stale counts and code-line references removed | System |
 | 1.8 | 2026-11-10 | ISSUE-012 refreshed from the isolated 13:15 sweep (the overlapping 12:23 run is not used); ISSUE-014 clean-data maximum qualified as checkpoint 2; host test in the repo | System |
+| 1.9 | 2026-11-12 | 8-checkpoint firmware: ISSUE-009, 013, 015 updated with measured results; ISSUE-016 to 019 added (build-to-build timing, Mahalanobis failure with spikes, FT-5 blind spot, timer guard) | System |
 
 ---
 
