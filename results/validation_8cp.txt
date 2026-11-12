@@ -1,0 +1,40 @@
+FIRMWARE VALIDATION, prefix 'val'
+Floor table (src/floor_table.h), cycles per CP x [a b c]: [[297, 305, 274], [257, 251, 240], [310, 300, 234], [255, 261, 231], [252, 224, 237], [257, 220, 214], [219, 207, 212]]
+Mahalanobis: H = 7.487; ceiling 4096 cycles per sub-stage at CP3
+
+0. HOST LOAD AND TIMER VALIDITY
+   clean   boots 300/300  load avg per boot: median 0.97 max 1.13 | boots above 2.0: 0 | boots with a rejected timer reading: 0
+   attack  boots 300/300  load avg per boot: median 1.22 max 1.51 | boots above 2.0: 0 | boots with a rejected timer reading: 0
+   ft1     boots 300/300  load avg per boot: median 1.08 max 1.20 | boots above 2.0: 0 | boots with a rejected timer reading: 0
+   ft2     boots 300/300  load avg per boot: median 1.16 max 1.27 | boots above 2.0: 0 | boots with a rejected timer reading: 0
+   ft3     boots 300/300  load avg per boot: median 1.07 max 1.20 | boots above 2.0: 0 | boots with a rejected timer reading: 0
+   ft4     boots 300/300  load avg per boot: median 1.18 max 1.38 | boots above 2.0: 0 | boots with a rejected timer reading: 0
+   ft5     boots 300/300  load avg per boot: median 1.22 max 1.36 | boots above 2.0: 0 | boots with a rejected timer reading: 0
+
+1. FIRMWARE vs PYTHON MIRROR (do the compiled firmware and the offline rule agree on every boot?)
+   clean   disagreements: 0 of 300
+   attack  disagreements: 0 of 300
+   ft1     disagreements: 0 of 300
+   ft2     disagreements: 0 of 300
+   ft3     disagreements: 0 of 300
+   ft4     disagreements: 0 of 300
+   ft5     disagreements: 0 of 300
+   total: 0 of 2100
+
+2. CLEAN BOOTS (false alarms; a boot with any alarm would halt)
+   floor rule       :   0/300 =   0.0%  (95% CI 0.0-1.3%)
+   Mahalanobis (CP3):  17/300 =   5.7%  (95% CI 3.6-8.9%)
+   either (boot halts):  17/300 =   5.7%  (95% CI 3.6-8.9%)
+   boots with a rejected timer reading (checks skipped, no alarm): 0
+
+3. FAULT BUILDS. detected = firmware printed an alarm at the checkpoint the fault hits.
+   'any' = alarm at any checkpoint (the boot would halt). 'elsewhere' = alarms only at checkpoints the fault does not touch.
+   build   floor, own CP                                Mahalanobis, own CP                          any alarm
+   attack  299/300 =  99.7%  (95% CI 98.1-99.9%)        300/300 = 100.0%  (95% CI 98.7-100.0%)       300/300  (alarms at other checkpoints in 0 boots)
+   ft1     299/300 =  99.7%  (95% CI 98.1-99.9%)          0/300 =   0.0%  (95% CI 0.0-1.3%)          300/300  (alarms at other checkpoints in 136 boots)
+   ft2     300/300 = 100.0%  (95% CI 98.7-100.0%)       300/300 = 100.0%  (95% CI 98.7-100.0%)       300/300  (alarms at other checkpoints in 0 boots)
+   ft3     298/300 =  99.3%  (95% CI 97.6-99.8%)          0/300 =   0.0%  (95% CI 0.0-1.3%)          298/300  (alarms at other checkpoints in 6 boots)
+   ft4     300/300 = 100.0%  (95% CI 98.7-100.0%)       300/300 = 100.0%  (95% CI 98.7-100.0%)       300/300  (alarms at other checkpoints in 0 boots)
+   ft5       0/300 =   0.0%  (95% CI 0.0-1.3%)          300/300 = 100.0%  (95% CI 98.7-100.0%)       300/300  (alarms at other checkpoints in 0 boots)
+
+4. NOT COVERED: ft5 adds work (+84% at CP3 sub_c); a lower bound cannot see it by design.

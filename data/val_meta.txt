@@ -1,0 +1,19 @@
+date: 2026-11-12T19:04:24+05:30
+qemu: QEMU emulator version 8.2.2
+git_head: 785e7f0
+git_dirty_firmware: 7 files
+boots_per_variant: 300
+elf: b781828263f0 app_collect.elf
+elf: ea56f2a64bba app_ft1.elf
+elf: 5d3d716cd534 app_ft2.elf
+elf: f6bbe7e47120 app_ft3.elf
+elf: d98535a555ff app_ft4.elf
+elf: df1650bb61ae app_ft5.elf
+elf: b8834e0528e6 app_attack.elf
+clean: loadavg 0.10 -> 1.07, incomplete: none
+ft1: loadavg 1.07 -> 1.11, incomplete: none
+ft2: loadavg 1.11 -> 1.18, incomplete: none
+ft3: loadavg 1.18 -> 0.99, incomplete: none
+ft4: loadavg 0.99 -> 1.21, incomplete: none
+ft5: loadavg 1.21 -> 1.22, incomplete: none
+attack: loadavg 1.22 -> 1.16, incomplete: none
