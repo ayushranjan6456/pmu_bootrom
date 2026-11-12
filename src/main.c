@@ -359,8 +359,13 @@ static uint8_t timer_ok(uint32_t id)
     return (s->sub_a + s->sub_b + s->sub_c <= step);
 }
 
-/* Prints the alarm. In COLLECT_MODE the boot continues so the telemetry is still recorded. */
-static void report_alarm(const char *detector, uint32_t cp, const uint32_t f[3])
+/*
+ * Response tiers. The floor rule had no false alarm on 300 clean boots and halts the boot.
+ * The Mahalanobis rule falsely alarmed on 5.7% of clean boots (timing spikes), so a
+ * halt would deny service to good boots: it only logs a warning. In COLLECT_MODE neither
+ * halts, so the telemetry is always printed.
+ */
+static void report_alarm(const char *detector, uint32_t cp, const uint32_t f[3], uint8_t halt)
 {
     uart_print("\r\n!!! ATTACK DETECTED at CP"); uart_print_u32(cp);
     uart_print(" ("); uart_print(detector); uart_println(") !!!");
@@ -369,6 +374,10 @@ static void report_alarm(const char *detector, uint32_t cp, const uint32_t f[3])
     uart_print_u32(f[0]); uart_putc(',');
     uart_print_u32(f[1]); uart_putc(',');
     uart_print_u32(f[2]);
+    if (!halt) {
+        uart_println("\r\nWARNING ONLY - boot continues");
+        return;
+    }
     uart_println("\r\nHALTING BOOT - Security violation");
 #ifndef COLLECT_MODE
     while (1) {
@@ -385,8 +394,8 @@ static void check_checkpoint(uint32_t cp, cusum_state_t *detector)
         return;
     }
     uint32_t f[3] = { boot_log[cp].sub_a, boot_log[cp].sub_b, boot_log[cp].sub_c };
-    if (cp == 3 && cusum_update(detector, f, 3)) report_alarm("mahalanobis", cp, f);
-    if (floor_check(cp, f)) report_alarm("floor", cp, f);
+    if (cp == 3 && cusum_update(detector, f, 3)) report_alarm("mahalanobis", cp, f, 0);
+    if (floor_check(cp, f)) report_alarm("floor", cp, f, 1);
 }
 
 /* ── Main ─────────────────────────────────────────────────────────── */

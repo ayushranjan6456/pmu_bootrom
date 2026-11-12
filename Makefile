@@ -7,7 +7,7 @@ SRC_DIR = src
 
 # Architecture and Flags
 MACH = cortex-m33
-CFLAGS = -mcpu=$(MACH) -mthumb -O0 -g -Wall -fno-builtin
+CFLAGS = -mcpu=$(MACH) -mthumb -O0 -g -Wall -fno-builtin $(EXTRA_CFLAGS)
 LDFLAGS = -nostartfiles -nostdlib -T $(SRC_DIR)/linker.ld
 
 # Source and Object files
