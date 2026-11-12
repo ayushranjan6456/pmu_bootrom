@@ -11,8 +11,11 @@ CFLAGS = -mcpu=$(MACH) -mthumb -O0 -g -Wall -fno-builtin
 LDFLAGS = -nostartfiles -nostdlib -T $(SRC_DIR)/linker.ld
 
 # Source and Object files
-SRCS = $(SRC_DIR)/startup.c $(SRC_DIR)/main.c $(SRC_DIR)/cusum_detector.c
+SRCS = $(SRC_DIR)/startup.c $(SRC_DIR)/main.c $(SRC_DIR)/cusum_detector.c $(SRC_DIR)/floor_detector.c
 OBJS = $(SRCS:.c=.o)
+
+# Rebuild objects when any header changes (a stale object after a table edit corrupts a dataset).
+$(OBJS): $(wildcard $(SRC_DIR)/*.h)
 TARGET = app.elf
 
 # QEMU configuration

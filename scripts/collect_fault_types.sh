@@ -47,15 +47,24 @@ for v in $VARIANTS; do
     elf=${v#*:}
     out="$DATA_DIR/${PREFIX}_${label}.csv"
     echo "boot_id,cp,elapsed,sub_a,sub_b,sub_c" > "$out"
+    # What the firmware itself decided on each boot (COLLECT_MODE prints the alarm and carries on).
+    # alarms is a ';'-separated list of detector@cp, timer_invalid the checkpoints whose timer readings were rejected.
+    bootlog="$DATA_DIR/${PREFIX}_${label}_boots.csv"
+    echo "boot_id,loadavg,alarms,timer_invalid" > "$bootlog"
     incomplete=""
     load_start=$(cut -d' ' -f1 /proc/loadavg)
 
     for i in $(seq 1 "$N_BOOTS"); do
+        boot_load=$(cut -d' ' -f1 /proc/loadavg)
         $QEMU $QEMU_FLAGS -kernel "$elf" > "$TMP" 2>&1 &
         pid=$!
         sleep "$BOOT_SECONDS"
         kill "$pid" 2>/dev/null || true
         wait "$pid" 2>/dev/null || true
+
+        alarms=$(tr -d '\r' < "$TMP" | awk -F, '/^ALARM,/{printf "%s%s@%s", s, $2, $3; s=";"}')
+        tinv=$(tr -d '\r' < "$TMP" | awk -F, '/^TIMER_INVALID,/{printf "%s%s", s, $2; s=";"}')
+        echo "$i,$boot_load,$alarms,$tinv" >> "$bootlog"
 
         rows=$(awk '/DATA_START/{f=1;next} /DATA_END/{f=0} f && /^[0-9]/' "$TMP")
         n=$(printf '%s\n' "$rows" | grep -c '^[0-9]' || true)

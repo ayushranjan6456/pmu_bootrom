@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include "cusum_detector.h"
+#include "floor_detector.h"
 
 /* ── UART (unchanged) ─────────────────────────────────────────────── */
 #define UART0_BASE    0x50200000
@@ -339,6 +340,55 @@ static void stage_handoff(uint32_t cp_id) {
     boot_log[cp_id].sub_c = t3 - t2;
 }
 
+/* ── Detection helpers ────────────────────────────────────────────── */
+
+/*
+ * A checkpoint's readings are usable only if SysTick did not wrap or stall:
+ * elapsed must rise, stay below the 24-bit maximum, and cover the three
+ * sub-stages. Under heavy host load QEMU's SysTick (host time) breaks this.
+ * Both detectors skip an invalid checkpoint, so a fault that also corrupts
+ * the timer would pass; real hardware (DWT) has no such wrap.
+ */
+static uint8_t timer_ok(uint32_t id)
+{
+    const pmu_snapshot_t *s = &boot_log[id];
+    uint32_t prev = boot_log[id - 1].elapsed_cycles;
+    if (s->elapsed_cycles >= 0x00FFFFFFUL || s->elapsed_cycles <= prev) return 0;
+    uint32_t step = s->elapsed_cycles - prev;
+    if (s->sub_a > step || s->sub_b > step || s->sub_c > step) return 0;
+    return (s->sub_a + s->sub_b + s->sub_c <= step);
+}
+
+/* Prints the alarm. In COLLECT_MODE the boot continues so the telemetry is still recorded. */
+static void report_alarm(const char *detector, uint32_t cp, const uint32_t f[3])
+{
+    uart_print("\r\n!!! ATTACK DETECTED at CP"); uart_print_u32(cp);
+    uart_print(" ("); uart_print(detector); uart_println(") !!!");
+    uart_print("ALARM,"); uart_print(detector); uart_putc(','); uart_print_u32(cp);
+    uart_print("\r\nALARM_FEATURES,");
+    uart_print_u32(f[0]); uart_putc(',');
+    uart_print_u32(f[1]); uart_putc(',');
+    uart_print_u32(f[2]);
+    uart_println("\r\nHALTING BOOT - Security violation");
+#ifndef COLLECT_MODE
+    while (1) {
+        /* In real system: erase keys, disable peripherals */
+    }
+#endif
+}
+
+/* Floor check on every stage checkpoint; Mahalanobis (CUSUM) on CP3 only. */
+static void check_checkpoint(uint32_t cp, cusum_state_t *detector)
+{
+    if (!timer_ok(cp)) {
+        uart_print("TIMER_INVALID,"); uart_print_u32(cp); uart_print("\r\n");
+        return;
+    }
+    uint32_t f[3] = { boot_log[cp].sub_a, boot_log[cp].sub_b, boot_log[cp].sub_c };
+    if (cp == 3 && cusum_update(detector, f, 3)) report_alarm("mahalanobis", cp, f);
+    if (floor_check(cp, f)) report_alarm("floor", cp, f);
+}
+
 /* ── Main ─────────────────────────────────────────────────────────── */
 int main(void)
 {
@@ -348,9 +398,8 @@ int main(void)
     uart_println("=== PMU BOOTROM STUB v0.3 ===");
     uart_println("Counter: SysTick (processor clock, 24-bit)");
     uart_println("Features: elapsed_cycles | sub_a | sub_b | sub_c");
-    uart_println("Detector: CUSUM (embedded, real-time)");
+    uart_println("Detector: floor check (CP1-7) + Mahalanobis CUSUM (CP3)");
 
-    /* Initialize CUSUM detector */
     cusum_state_t detector;
     cusum_init(&detector);
 
@@ -363,55 +412,37 @@ int main(void)
     /* Stage 1: memory init */
     stage_memory_init(1);
     pmu_checkpoint(1);
+    check_checkpoint(1, &detector);
 
     /* Stage 2: boot mode detection */
     stage_boot_mode_detect(2);
     pmu_checkpoint(2);
+    check_checkpoint(2, &detector);
 
     /* Stage 3: signature verify — primary attack target */
     stage_signature_verify(3);
     pmu_checkpoint(3);
-
-    /* ── CHECK FOR ATTACK at CP3 (primary glitch target) ── */
-    uint32_t cp3_features[3] = {
-        boot_log[3].sub_a,
-        boot_log[3].sub_b,
-        boot_log[3].sub_c
-    };
-
-    /* ── CUSUM Detection ── */
-    if (cusum_update(&detector, cp3_features, 3)) {
-        uart_println("\r\n!!! ATTACK DETECTED at CP3 !!!");
-        uart_print("Mahalanobis distance exceeded threshold");
-        uart_print("\r\nALARM_FEATURES,");
-        uart_print_u32(cp3_features[0]); uart_putc(',');
-        uart_print_u32(cp3_features[1]); uart_putc(',');
-        uart_print_u32(cp3_features[2]);
-        uart_println("\r\nHALTING BOOT - Security violation");
-
-#ifndef COLLECT_MODE
-        /* Security response: halt and lockup */
-        while (1) {
-            /* In real system: erase keys, disable peripherals */
-        }
-#endif
-    }
+    check_checkpoint(3, &detector);
 
     /* Stage 4: decrypt firmware image */
     stage_decrypt(4);
     pmu_checkpoint(4);
+    check_checkpoint(4, &detector);
 
     /* Stage 5: integrity check (CRC, auth tag, rollback) */
     stage_integrity_check(5);
     pmu_checkpoint(5);
+    check_checkpoint(5, &detector);
 
     /* Stage 6: memory protection setup (MPU, TrustZone-M) */
     stage_memory_setup(6);
     pmu_checkpoint(6);
+    check_checkpoint(6, &detector);
 
     /* Stage 7: handoff preparation */
     stage_handoff(7);
     pmu_checkpoint(7);
+    check_checkpoint(7, &detector);
 
     /* ── Output: one line per checkpoint, CSV format ── */
     /*

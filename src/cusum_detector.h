@@ -32,8 +32,9 @@ typedef int32_t fixed_t;
 /* Convert float to Q16.16 at compile time (for model parameters) */
 #define FLOAT_TO_FIXED(x)   ((fixed_t)((x) * 65536.0f))
 
-/* Any single sub-stage above this many cycles is an automatic alarm (the
- * largest sub-stage in the clean training data is 934 cycles). */
+/* Any single sub-stage above this many cycles is an automatic alarm. Applied at CP3 only
+ * (the checkpoint cusum_update monitors); the largest clean CP3 sub-stage is 3555 cycles
+ * (data/cal_clean.csv), so the margin is small and a timing spike can trip it. */
 #define SUBSTAGE_ALARM_CYCLES   4096U
 
 /* Convert int to Q16.16 */
