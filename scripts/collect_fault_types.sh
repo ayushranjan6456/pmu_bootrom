@@ -1,119 +1,84 @@
 #!/bin/bash
-# Enhanced collection script for multiple fault types
-# Collects N boots for each fault type plus clean baseline
+# Collect N non-halting boots for the clean build and each fault build.
+# Usage: bash scripts/collect_fault_types.sh [N_BOOTS] [PREFIX]
+# Output: data/<PREFIX>_<label>.csv (boot_id,cp,elapsed,sub_a,sub_b,sub_c)
+#         data/<PREFIX>_meta.txt (QEMU version, git commit, ELF hashes, host load)
+set -euo pipefail
 
-set -e
-
-QEMU="qemu-system-arm"
+N_BOOTS=${1:-100}
+PREFIX=${2:-ds1}
+QEMU=qemu-system-arm
 QEMU_FLAGS="-machine mps2-an505 -cpu cortex-m33 -nographic"
-BOOT_TIMEOUT=0.8  # seconds to let each boot run
+BOOT_SECONDS=0.8
+EXPECTED_CPS=8
+DATA_DIR=data
 
-# Default values
-N_BOOTS=100
-DATA_DIR="data"
-OUTPUT_PREFIX="ft_collection"
+# label:make-target
+VARIANTS="clean:app_collect.elf ft1:app_ft1.elf ft2:app_ft2.elf ft3:app_ft3.elf ft4:app_ft4.elf ft5:app_ft5.elf attack:app_attack.elf"
 
-# Parse arguments
-if [ $# -ge 1 ]; then
-    N_BOOTS=$1
-fi
+QEMU_VERSION=$($QEMU --version | head -1)
+case "$QEMU_VERSION" in
+    *"version 8."*|*"version 9."*|*"version 1"[0-9]*) ;;
+    *) echo "ERROR: need QEMU 8 or newer (6.x alarms on every boot). Found: $QEMU_VERSION"; exit 1 ;;
+esac
 
-if [ $# -ge 2 ]; then
-    OUTPUT_PREFIX=$2
-fi
+# Always rebuild: a stale ELF built from older sources silently corrupts the dataset.
+for v in $VARIANTS; do rm -f "${v#*:}"; done
+for v in $VARIANTS; do make "${v#*:}" > /dev/null; done
 
-echo "=== Fault Type Data Collection ==="
-echo "Date: $(date -Iseconds)"
-echo "Collecting $N_BOOTS boots per fault type"
-echo "QEMU: $($QEMU --version | head -1)"
-echo ""
+META="$DATA_DIR/${PREFIX}_meta.txt"
+{
+    echo "date: $(date -Iseconds)"
+    echo "qemu: $QEMU_VERSION"
+    echo "git_head: $(git rev-parse --short HEAD)"
+    echo "git_dirty_firmware: $(git status --porcelain src Makefile | wc -l) files"
+    echo "boots_per_variant: $N_BOOTS"
+    for v in $VARIANTS; do echo "elf: $(sha256sum "${v#*:}" | cut -c1-12) ${v#*:}"; done
+} > "$META"
+cat "$META"
+echo
 
-# Fault types to collect
-declare -A FAULT_TYPES
-FAULT_TYPES[clean]="app.elf"
-FAULT_TYPES[ft1]="app_ft1.elf"
-FAULT_TYPES[ft2]="app_ft2.elf"
-FAULT_TYPES[ft3]="app_ft3.elf"
-FAULT_TYPES[ft4]="app_ft4.elf"
-FAULT_TYPES[ft5]="app_ft5.elf"
-FAULT_TYPES[attack]="app_attack.elf"  # Original CP3 sub_b removal
+TMP=$(mktemp)
+trap 'rm -f "$TMP"' EXIT
+FAILED=0
 
-# Build all firmware variants
-echo "Building all firmware variants..."
-make clean > /dev/null 2>&1
-for fw in "${FAULT_TYPES[@]}"; do
-    if [ ! -f "$fw" ]; then
-        target=$(basename "$fw")
-        echo "  Building $target..."
-        make "$target" > /dev/null 2>&1
-    fi
-done
-echo ""
+for v in $VARIANTS; do
+    label=${v%%:*}
+    elf=${v#*:}
+    out="$DATA_DIR/${PREFIX}_${label}.csv"
+    echo "boot_id,cp,elapsed,sub_a,sub_b,sub_c" > "$out"
+    incomplete=""
+    load_start=$(cut -d' ' -f1 /proc/loadavg)
 
-# Function to collect boots for one fault type
-collect_fault_type() {
-    local label=$1
-    local firmware=$2
-    local output_file="${DATA_DIR}/${OUTPUT_PREFIX}_${label}.csv"
-    local temp_file="${DATA_DIR}/temp_${label}.txt"
+    for i in $(seq 1 "$N_BOOTS"); do
+        $QEMU $QEMU_FLAGS -kernel "$elf" > "$TMP" 2>&1 &
+        pid=$!
+        sleep "$BOOT_SECONDS"
+        kill "$pid" 2>/dev/null || true
+        wait "$pid" 2>/dev/null || true
 
-    echo "Collecting $label ($N_BOOTS boots)..."
-    echo "boot_id,cp,elapsed,sub_a,sub_b,sub_c" > "$output_file"
-
-    for i in $(seq 1 $N_BOOTS); do
-        # Run QEMU in background
-        $QEMU $QEMU_FLAGS -kernel "$firmware" > "$temp_file" 2>&1 &
-        QEMU_PID=$!
-
-        # Wait for boot to complete
-        sleep $BOOT_TIMEOUT
-
-        # Kill QEMU
-        kill $QEMU_PID 2>/dev/null || true
-        wait $QEMU_PID 2>/dev/null || true
-
-        # Extract CSV data (between DATA_START and DATA_END)
-        # Prepend boot_id to each line
-        awk '/DATA_START/{f=1;next} /DATA_END/{f=0} f && /^[0-9]/' "$temp_file" \
-            | awk -F',' -v id=$i '{print id","$0}' >> "$output_file"
-
-        # Progress indicator
-        if (( i % 10 == 0 )); then
-            printf "\r  Progress: %d/%d" $i $N_BOOTS
+        rows=$(awk '/DATA_START/{f=1;next} /DATA_END/{f=0} f && /^[0-9]/' "$TMP")
+        n=$(printf '%s\n' "$rows" | grep -c '^[0-9]' || true)
+        if [ "$n" -ne "$EXPECTED_CPS" ]; then
+            # Catches stale or wrong firmware on the first boot instead of after 28 minutes.
+            if [ "$i" -eq 1 ]; then
+                echo "ERROR: $label ($elf) boot 1 produced $n rows, expected $EXPECTED_CPS"; exit 1
+            fi
+            incomplete="$incomplete $i"
+            continue
         fi
+        printf '%s\n' "$rows" | awk -F',' -v id="$i" '{print id","$0}' >> "$out"
     done
 
-    echo ""  # newline after progress
-    rm -f "$temp_file"
-
-    # Count how many boots were captured
-    local n_captured=$(( $(wc -l < "$output_file") - 1 ))
-    local n_expected=$(( N_BOOTS * 8 ))  # 8 checkpoints per boot
-    echo "  Captured: $n_captured rows (expected $n_expected)"
-
-    if [ $n_captured -lt $(( n_expected * 95 / 100 )) ]; then
-        echo "  WARNING: Missing >5% of data!"
+    load_end=$(cut -d' ' -f1 /proc/loadavg)
+    got=$(( $(wc -l < "$out") - 1 ))
+    printf '%-7s boots=%d/%d  loadavg %s -> %s' "$label" $((got / EXPECTED_CPS)) "$N_BOOTS" "$load_start" "$load_end"
+    if [ -n "$incomplete" ]; then
+        printf '  INCOMPLETE boot ids:%s' "$incomplete"; FAILED=1
     fi
-
-    echo "  Saved to $output_file"
-    echo ""
-}
-
-# Collect data for each fault type
-for label in clean ft1 ft2 ft3 ft4 ft5 attack; do
-    firmware=${FAULT_TYPES[$label]}
-    collect_fault_type "$label" "$firmware"
+    echo
+    echo "$label: loadavg $load_start -> $load_end, incomplete:${incomplete:- none}" >> "$META"
 done
 
-echo "=== Collection Complete ==="
-echo "Output files in $DATA_DIR/${OUTPUT_PREFIX}_*.csv"
-echo ""
-echo "Summary:"
-for label in clean ft1 ft2 ft3 ft4 ft5 attack; do
-    file="${DATA_DIR}/${OUTPUT_PREFIX}_${label}.csv"
-    if [ -f "$file" ]; then
-        n_rows=$(( $(wc -l < "$file") - 1 ))
-        n_boots=$(( n_rows / 8 ))
-        printf "  %-10s %4d boots (%5d rows)\n" "$label:" $n_boots $n_rows
-    fi
-done
+[ "$FAILED" -eq 0 ] || { echo "Some boots were incomplete; see above."; exit 1; }
+echo "Done. Files: $DATA_DIR/${PREFIX}_*.csv"

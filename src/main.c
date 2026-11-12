@@ -209,25 +209,16 @@ static void stage_signature_verify(uint32_t cp_id) {
     #endif
 
     /* Sub-stage C: signature comparison (the critical branch) */
-    #ifdef GLITCH_FT2_CP2_COMPARE
-        /* FT-2: Skip signature comparison loop (fault injection at CP2 sub_c) */
-        t3 = systick_elapsed();
-    #else
+    #ifndef GLITCH_FT2_CP2_COMPARE
         for (int i = 0; i < 200; i++) x = x ^ (uint32_t)(i * i);
-        t3 = systick_elapsed();
     #endif
-
     #ifdef GLITCH_FT5_CORRUPT_FLAG
-        /* FT-5: Variable corruption - flip verification result flag
-         * Simulates: register fault that corrupts the "signature valid" boolean.
-         * Attack vector: fault during result comparison corrupts outcome flag.
-         * This adds extra work rather than skipping, creating a different signature. */
-        volatile uint32_t verify_flag = 1; /* normally set by comparison */
-        for (int i = 0; i < 50; i++) {
-            verify_flag ^= (x & 0x1); /* corrupt with hash bits */
-        }
+        /* FT-5: extra work inside sub-stage C (timing grows instead of shrinking) */
+        volatile uint32_t verify_flag = 1;
+        for (int i = 0; i < 50; i++) verify_flag ^= (x & 0x1);
         (void)verify_flag;
     #endif
+    t3 = systick_elapsed();
     (void)x;
 
     boot_log[cp_id].sub_a = t1 - t0;

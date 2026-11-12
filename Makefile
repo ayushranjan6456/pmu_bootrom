@@ -48,7 +48,12 @@ collect: $(TARGET)
 
 # --- Attack Simulation Targets ---
 
-# Original attack build: CP2 sub_b loop removed (100% skip)
+# Non-halting clean build for training data: an alarm does not stop the boot,
+# so no clean boot is dropped from the dataset.
+app_collect.elf: $(SRCS)
+	$(CC) $(CFLAGS) -DCOLLECT_MODE $(LDFLAGS) $^ -o $@
+
+# Original attack build: CP3 sub_b loop removed (100% skip)
 app_attack.elf: $(SRCS)
 	$(CC) $(CFLAGS) -DGLITCH_ATTACK -DCOLLECT_MODE $(LDFLAGS) $^ -o $@
 
