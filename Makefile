@@ -45,8 +45,8 @@ debug-server: $(TARGET)
 	$(QEMU) $(QEMU_FLAGS) -kernel $(TARGET) -s -S
 
 # Convenience target to collect 500 boot samples for the PMU model
-collect: $(TARGET)
-	bash scripts/collect.sh
+# Old collect target removed - use scripts/collect_fault_types.sh directly
+# Example: bash scripts/collect_fault_types.sh data/cal_clean app_collect.elf 300
 
 
 # --- Attack Simulation Targets ---

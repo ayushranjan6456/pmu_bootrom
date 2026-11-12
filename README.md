@@ -35,40 +35,50 @@ make run
 # "!!! ATTACK DETECTED at CP2 !!!" and halts instead.
 ```
 
-### 3. Train Detector Model
+### 3. Collect Calibration Data
 
 ```bash
-# Collect training data (500 boots, ~7 minutes)
-make collect
+# Collect 300 clean boots (~4 minutes)
+bash scripts/collect_fault_types.sh data/cal_clean app_collect.elf 300
 
-# Build statistical model
-source .venv/bin/activate
-python scripts/build_model.py
-
-# Output: data/model.npz
+# Output: data/cal_clean.csv and data/cal_clean_boots.csv
 ```
 
-### 4. Calibrate Firmware
+### 4. Calibrate Detectors
 
 ```bash
-# Generate firmware parameters
-python scripts/calibrate_firmware.py
+source .venv/bin/activate
 
-# Output shows C code to paste into src/cusum_detector.c
-# Update CUSUM_MODEL const with the generated values
+# Generate floor detector table (F=0.45)
+python scripts/calibrate_floor.py data/cal_clean.csv 0.45
 
-# Rebuild with calibrated model
+# Output: src/floor_table.h (auto-included by floor_detector.c)
+
+# Generate Mahalanobis parameters for CP3
+python scripts/calibrate_firmware.py data/cal_clean.csv 3 data/ds1_attack.csv
+
+# Output shows C code for src/cusum_detector.c constants
+
+# Rebuild with calibrated parameters
 make clean && make
 ```
 
-### 5. Test Detection
+### 5. Validate Detectors
 
 ```bash
-# Run automated test suite (one at a time: it runs make clean and rebuilds the shared app.elf)
-bash scripts/test_firmware_detector.sh
+# Collect fresh validation boots (all 7 variants)
+bash scripts/collect_fault_types.sh data/val_clean app_collect.elf 300
+bash scripts/collect_fault_types.sh data/val_attack app_attack.elf 300
+bash scripts/collect_fault_types.sh data/val_ft1 app_ft1.elf 300
+# ... (ft2, ft3, ft4, ft5)
 
-# Prints the false alarm rate and detection rate; PASS means <=5% false alarms and >=90% detection.
-# Measured values for the 1000-boot run are in STATUS.md.
+# Test firmware detector against validation data
+python scripts/validate_firmware.py
+
+# Test real halting builds (optional, takes ~30 minutes for N=300)
+bash scripts/test_halting_build.sh
+
+# Validation results are in STATUS.md
 ```
 
 ---
@@ -84,18 +94,21 @@ pmu_bootrom/
 │   └── linker.ld                 # Memory layout
 │
 ├── scripts/                      # Analysis pipeline
-│   ├── build_model.py            # Train Gaussian model
-│   ├── cusum_detector.py         # Detector simulation
-│   ├── calibrate_firmware.py    # Model → C code generator
-│   ├── test_firmware_detector.sh # Automated tests (clean + glitched boots)
-│   ├── baseline_comparison.py    # Mahalanobis vs plain sub_b thresholds
-│   ├── severity_sweep.sh         # Partial-skip glitch builds (see limitation)
-│   ├── visualize.py              # Data visualization
-│   └── data_quality.py           # Dataset validation
+│   ├── collect_fault_types.sh    # Batch QEMU collection
+│   ├── calibrate_floor.py        # Generate floor_table.h
+│   ├── calibrate_firmware.py     # Generate Mahalanobis constants
+│   ├── validate_firmware.py      # Test detectors on validation data
+│   ├── test_halting_build.sh     # Real halting-build test (300 boots/variant)
+│   ├── detector_comparison.py    # Held-out comparison, severity sweep
+│   ├── mahalanobis_failure_analysis.py  # Why Mahalanobis fails
+│   ├── make_slide_plots.py       # Generate figures 1-6
+│   └── fw_model.py               # Python mirror of firmware fixed-point
 │
 ├── data/                         # Datasets
-│   ├── nominal_boots.csv         # Clean boot telemetry
-│   └── model.npz                 # Trained model
+│   ├── cal_clean.csv             # Calibration set (300 boots)
+│   ├── val_*.csv                 # Validation sets (7 variants × 300)
+│   ├── ds1_*.csv                 # First collection (superseded by val_*)
+│   └── *_meta.txt                # Collection provenance
 │
 ├── results/                      # Generated plots
 └── docs/                         # Technical documentation

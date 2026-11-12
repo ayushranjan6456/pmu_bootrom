@@ -4,18 +4,13 @@ How the pieces fit together and why the detector is built the way it is. Results
 
 ## 1. What the system does
 
-A bare-metal Cortex-M33 bootrom stub runs in QEMU (`mps2-an505`). Each boot passes through four checkpoints and prints its timing. A statistical model of clean timing is fitted offline. After checkpoint 2 (signature verification) the firmware scores the boot against that model and halts if it looks anomalous.
+A bare-metal Cortex-M33 bootrom stub runs in QEMU (`mps2-an505`). Each boot passes through eight checkpoints (CP0-CP7) and prints its timing. Two detectors run in the firmware:
 
-Two detectors exist and they are calibrated differently:
+1. **Floor detector** (primary): After each checkpoint CP1-CP7, checks if any sub-stage is below 0.45× its clean median. If so, halts the boot immediately. 140 bytes, integer compares only.
 
-| | Python simulation | Firmware |
-|---|---|---|
-| Input | 20-boot windows of recorded data | one boot, once |
-| Statistic | sequential CUSUM, `S = max(0, S + MD - k)` | the same update, called once with S = 0 and k = 0, so a threshold on MD |
-| Threshold | k = 70th percentile of clean MD; H = 99th percentile of the window maximum (`data/model.npz`) | H = 1.25 x the largest clean MD (`src/cusum_detector.c`) |
-| Used for | severity curves (synthetic attacks) | the 1000-boot validation |
+2. **Mahalanobis detector** (secondary): After CP3 only, scores the boot against a multivariate Gaussian model of clean timing. If the one-shot Mahalanobis distance exceeds a threshold, prints a warning but allows boot to continue. 1060 bytes, Q16.16 fixed-point.
 
-Do not compare their numbers as if they were one detector (STATUS.md, Section 2).
+Design rationale: The floor rule has 0% false alarms and catches large timing reductions reliably. The Mahalanobis rule has 5.7% false alarms on clean boots (timing spikes trigger it), so it warns only. Together they provide fail-stop protection for skipped loops and visibility into upward timing anomalies. See [FIRMWARE_DETECTOR.md](FIRMWARE_DETECTOR.md) and [docs/MAHALANOBIS_ANALYSIS.md](docs/MAHALANOBIS_ANALYSIS.md).
 
 ## 2. Firmware (`src/`)
 
@@ -29,52 +24,55 @@ Stages (the work is busy loops on `volatile` variables, not real cryptography):
 | Checkpoint | Stage | Sub-stages A / B / C (loop iterations) |
 |---|---|---|
 | 0 | boot start (includes UART init) | none (sub values are 0) |
-| 1 | memory init | 200 / 200 / 200 |
-| 2 | signature verify (monitored) | 500 / 300 / 200 |
-| 3 | key derivation | 100 / 100 / 100 |
+| 1 | hardware init | 200 / 200 / 200 |
+| 2 | boot mode detect | 200 / 200 / 200 |
+| 3 | signature verify (primary attack target) | 500 / 300 / 200 |
+| 4 | decrypt stage | 200 / 200 / 200 |
+| 5 | integrity check | 200 / 200 / 200 |
+| 6 | memory setup | 200 / 200 / 200 |
+| 7 | handoff | 200 / 200 / 200 |
 
-Each checkpoint prints `cp, elapsed, sub_a, sub_b, sub_c` between `DATA_START` and `DATA_END`. Timing is the SysTick 24-bit down-counter. In QEMU it follows host time, not executed instructions (STATUS.md, "Firmware partial-severity sweep"), which is the main platform limit.
+Each checkpoint prints `cp, elapsed, sub_a, sub_b, sub_c` between `DATA_START` and `DATA_END`. Timing is the SysTick 24-bit down-counter. In QEMU it follows host time, not executed instructions, so partial skips are invisible (ISSUE-012).
 
 Build variants:
 
 | Command | Result |
 |---|---|
-| `make` | clean firmware `app.elf`; the detector halts the boot on alarm |
-| `make app_attack.elf` | glitch on (`-DGLITCH_ATTACK`) and non-halting (`-DCOLLECT_MODE`), used for data collection |
-| `-DGLITCH_SKIP_PCT=<n>` | skip n% of the sub-stage B loop (default 100); used by `scripts/severity_sweep.sh` |
+| `make` | Clean firmware `app.elf`; floor detector halts on alarm |
+| `make app_collect.elf` | Non-halting (`-DCOLLECT_MODE`) for data collection |
+| `make app_attack.elf` | Attack fault (`-DGLITCH_ATTACK`) + collect mode |
+| `make app_ft1.elf` | FT-1 fault (CP1 sub_b removed) + collect mode |
+| `make app_ft2.elf` ... `app_ft5.elf` | Other fault types, see [FAULT_MODELS.md](FAULT_MODELS.md) |
 
-The simulated fault removes the sub-stage B loop. It models a skipped verification loop, not an electrical glitch.
+Six fault types are implemented: five skipped loops and one extra loop (FT-5, +84% on CP3 sub_c).
 
 ## 3. Statistical model (`scripts/`)
 
-Feature vector at checkpoint 2: `x = [sub_a, sub_b, sub_c]`.
+**Floor detector:** For each checkpoint, compute the median of each sub-stage over 300 clean boots. Alarm if any sub-stage < F × median, where F = 0.45. Calibrated by `scripts/calibrate_floor.py`, table written to `src/floor_table.h`.
 
-1. Fit the mean `mu` and covariance `S` on clean boots.
+**Mahalanobis detector (CP3 only):** Feature vector `x = [sub_a, sub_b, sub_c]`.
+
+1. Fit the mean `mu` and covariance `S` on 300 clean boots at CP3.
 2. Score a boot by Mahalanobis distance `MD = sqrt((x - mu)' S^-1 (x - mu))`.
-3. Alarm when the CUSUM statistic exceeds H.
+3. Alarm when MD exceeds H = 1.25 × max clean MD (one-shot threshold, k=0).
 
-Why a multivariate score: the three sub-stages move together under normal variation (correlation about 0.9), so a spike in one of them is far more unusual than its own spread suggests. Whether this beats a plain `sub_b` threshold depends on the fault size; the comparison is in STATUS.md ("Baseline comparison").
+Why a multivariate score: the three sub-stages move together under normal variation (correlation about 0.9), so a spike in one of them is far more unusual than its own spread suggests. 
 
-The clean data is not Gaussian (Shapiro-Wilk rejects it; [docs/GAUSSIAN_ASSUMPTION_ANALYSIS.md](docs/GAUSSIAN_ASSUMPTION_ANALYSIS.md)), so thresholds are set empirically from observed distances, not from Gaussian quantiles. For reference, the Gaussian 99% value for three features is MD 3.37, which would flag 3.6% of the clean boots.
+The clean data is not Gaussian (Shapiro-Wilk rejects it; [docs/GAUSSIAN_ASSUMPTION_ANALYSIS.md](docs/GAUSSIAN_ASSUMPTION_ANALYSIS.md)), and contains timing spikes (about 14% of boots have some sub-stage above 1.5× median). These spikes make the two-sided Mahalanobis rule unreliable across all checkpoints. The floor rule is one-sided (downward only) and robust. See [docs/MAHALANOBIS_ANALYSIS.md](docs/MAHALANOBIS_ANALYSIS.md).
 
 Scripts:
 
 | Script | Purpose |
 |---|---|
-| `collect.sh` (`make collect`) | 500 QEMU boots into `data/nominal_boots.csv` |
-| `data_quality.py` | dataset integrity checks |
-| `build_model.py` | clean data, fit the model, calibrate the sequential threshold, write `data/model.npz` and two figures |
-| `cusum_detector.py` | synthetic attacks at 5 severities, detection and false-alarm rates, ROC at 20%; writes `results/cusum_results.png` |
-| `cusum_detector2.py` | the fitted model against the recorded attack boots (`data/attack_boots.csv`), writes `results/empirical_attack.png` |
-| `baseline_comparison.py` | one-shot Mahalanobis against `sub_b` thresholds |
-| `calibrate_firmware.py` | fit the firmware model and print the C block for `src/cusum_detector.c` |
-| `visualize.py` | cycle-stability figure |
-| `test_firmware_detector.sh` | N clean and N glitched boots through the real firmware (`N=1000` for the full run) |
-| `severity_sweep.sh` | partial-skip builds and boots |
-
-### Sequential calibration
-
-A CUSUM over a window false-alarms far more often than its single-observation threshold suggests, because every boot adds a chance to cross H. Using the single-observation 99th percentile of MD (4.88) as H gives about 13% false alarms over 20-boot windows (a quick simulation, resampling the clean MD values; not a repo script). Taking H from the 99th percentile of the window maximum (10.14) gives about 1%. That is what `build_model.py` does.
+| `collect_fault_types.sh` | Batch QEMU collection (N boots → CSV) |
+| `calibrate_floor.py` | Fit floor table, write `src/floor_table.h` |
+| `calibrate_firmware.py` | Fit Mahalanobis model for CP3, print C constants |
+| `validate_firmware.py` | Test detectors on validation data (held-out, 4 splits) |
+| `test_halting_build.sh` | Real halting-build test (N=300 per variant) |
+| `detector_comparison.py` | Held-out comparison, floor fraction sweep, synthetic severity |
+| `mahalanobis_failure_analysis.py` | Why Mahalanobis fails on 8-CP data |
+| `make_slide_plots.py` | Generate figures 1-6 for slides |
+| `fw_model.py` | Python mirror of firmware fixed-point arithmetic |
 
 ## 4. Fixed-point implementation
 
@@ -83,21 +81,37 @@ Q16.16 in `int32_t`, with 64-bit intermediates. The square root is a division-fr
 ## 5. Running the full flow
 
 ```bash
-make clean && make                  # build
-make run </dev/null                 # one boot in QEMU
-make collect                        # 500 clean boots (about 7 minutes)
+# Build and test
+make clean && make
+make run </dev/null
+
+# Collect calibration data
+bash scripts/collect_fault_types.sh data/cal_clean app_collect.elf 300
+
+# Calibrate detectors
 source .venv/bin/activate
-python scripts/data_quality.py
-python scripts/build_model.py
-python scripts/cusum_detector.py
-make collect-attack                 # 50 glitched boots
-python scripts/cusum_detector2.py
-python scripts/calibrate_firmware.py   # paste the printed block into src/cusum_detector.c, then rebuild
-N=1000 bash scripts/test_firmware_detector.sh > results/validation_1000.log
-python scripts/baseline_comparison.py
+python scripts/calibrate_floor.py data/cal_clean.csv 0.45
+python scripts/calibrate_firmware.py data/cal_clean.csv 3 data/ds1_attack.csv
+# (Update src/floor_table.h and src/cusum_detector.c constants, then rebuild)
+
+# Collect validation data (7 variants × 300 boots)
+bash scripts/collect_fault_types.sh data/val_clean app_collect.elf 300
+bash scripts/collect_fault_types.sh data/val_attack app_attack.elf 300
+# ... (ft1 through ft5)
+
+# Validate
+python scripts/validate_firmware.py
+python scripts/detector_comparison.py
+python scripts/mahalanobis_failure_analysis.py
+
+# Generate slide figures
+python scripts/make_slide_plots.py
+
+# Test real halting build (optional, ~30 minutes for N=300)
+bash scripts/test_halting_build.sh
 ```
 
-Run `test_firmware_detector.sh`, `severity_sweep.sh` and any manual build one at a time: they all run `make clean` and rebuild the shared `app.elf`, so overlapping runs swap the build under each other and corrupt the results.
+Run `test_halting_build.sh` alone: it rebuilds `app.elf` per variant, so concurrent `make` commands corrupt results.
 
 Redirect QEMU's input from `/dev/null` (or use `timeout --foreground`) when running it by hand from a terminal; otherwise it can block and the capture comes back empty. `test_firmware_detector.sh` aborts if a boot produces no output.
 

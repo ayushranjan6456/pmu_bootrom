@@ -4,26 +4,26 @@ Short answers first, evidence second. Numbers come from [STATUS.md](../STATUS.md
 
 ## Results and method
 
-**1. Your simulated fault is huge. Would a plain threshold on sub_b catch it too?**
-Yes, and we measured it ([STATUS.md](../STATUS.md#baseline-comparison-one-shot-detectors)): all three one-shot detectors catch the real glitch 100%. In the datasets, clean Mahalanobis distance never exceeds 8.7 (496 boots) and glitched is 19.1 to 31.9 (50 boots); the live validation does show rare clean spikes far above 8.7, see answer 7. The differences appear on synthetic reductions at the same 1% calibration: Mahalanobis is better from about 20% severity (71.6% vs 48.3% at 20%, 99.4% vs 73.3% at 30%), but a `sub_b` threshold is better at 5 to 10% (16.2% vs 5.5% at 10%). So the multivariate model helps for medium faults and not for the weakest. Do not claim the firmware result proves sensitivity to subtle faults.
+**1. Your simulated faults are huge (80-90% reductions). Is a statistical detector even needed?**
+You're right that a simple floor threshold catches them. That's why the shipped firmware uses one: check if any sub-stage < 0.45× its clean median, halt if so. 140 bytes, integer compares, 0% false alarms on 300 clean boots, 298-300 of 300 detected on five skip-loop faults. The Mahalanobis rule (1060 bytes, Q16.16 fixed-point) has 5.7% false alarms because timing spikes in the clean data make it two-sided, so it only warns at CP3. The floor is one-sided (downward only) and robust. The detector design is tiered: fail-stop for high-confidence (floor), warning for lower-confidence (Mahalanobis). See [FIRMWARE_DETECTOR.md](../FIRMWARE_DETECTOR.md) and [docs/MAHALANOBIS_ANALYSIS.md](../docs/MAHALANOBIS_ANALYSIS.md).
 
 **2. You call it CUSUM, but the firmware calls it once per boot.**
-Correct. In firmware, S starts at 0 and gets one update, so it is a calibrated one-shot threshold on Mahalanobis distance (k = 0). The sequential version runs in the Python simulation over 20-boot windows. Sequential accumulation across checkpoints is Phase 2.
+Correct. The Mahalanobis detector in firmware (CP3 only) does S starts at 0 and gets one update, so it is a calibrated one-shot threshold on Mahalanobis distance (k = 0, H = 1.25× max clean MD). The primary detector is the floor rule, which runs at every checkpoint CP1-CP7. Sequential CUSUM and multi-checkpoint fusion are Phase 2.
 
 **3. What does your false-alarm rate mean in practice? Halting a boot is costly.**
-The measured rate is in STATUS.md. Any non-zero rate means some legitimate boots halt, which is unacceptable for a product. Phase 1 shows the pipeline; the Phase 2 goals are hardware with lower timing noise and a response policy better than halt (retry, then lock out).
+The floor rule: 0 of 300 clean boots halted (95% CI 0 to 1.3%). The Mahalanobis rule: 17 of 300 clean boots warned (5.7%, CI 3.6 to 8.9%), mostly timing spikes, so it does not halt. This is why we use a tiered response: the floor is fail-stop with high confidence, Mahalanobis warns with lower confidence. Real hardware should have lower timing noise (DWT counters measure executed work, not wall time), and Phase 2 will add retry-then-lockout policy.
 
 **4. Why a Gaussian model when Shapiro-Wilk rejects Gaussianity?**
 Measured and documented ([GAUSSIAN_ASSUMPTION_ANALYSIS.md](../docs/GAUSSIAN_ASSUMPTION_ANALYSIS.md)). Thresholds are set empirically from observed distances, not from Gaussian quantiles, so the test still has a measured false-alarm rate on this data. The non-Gaussianity is attributed to QEMU host jitter; whether hardware removes it is a hypothesis for Phase 2.
 
-**5. Why does the Python threshold differ from the firmware threshold?**
-Different problems. Python is sequential over 20-boot windows (k from the 70th percentile of clean MD, H from the 99th percentile of the window maximum). Firmware is one observation, so it uses k = 0 and H = 1.25 x the largest clean MD. Details in [FIRMWARE_DETECTOR.md](../FIRMWARE_DETECTOR.md).
+**5. Why two detectors, and why does Mahalanobis only warn?**
+Mahalanobis failed when applied across all checkpoints: about 14% of clean boots have timing spikes (some sub-stage >1.5× median), and the two-sided score treats spikes like faults. The max-based threshold (H = 1.25× largest clean MD) is set by the most extreme training boot. At CP3 it false-alarms on 5.7% of clean boots — too high to halt. The floor rule is one-sided (downward only), so spikes don't trigger it, and it has 0% false alarms. We run both: floor halts with high confidence, Mahalanobis warns with lower confidence. FT-5 (extra loop, timing goes up) is only caught by the warning. Details in [FIRMWARE_DETECTOR.md](../FIRMWARE_DETECTOR.md) and [docs/MAHALANOBIS_ANALYSIS.md](../docs/MAHALANOBIS_ANALYSIS.md).
 
 **6. Why was an earlier threshold calibration wrong?**
 Using the single-observation 99th percentile as the CUSUM threshold ignores accumulation and gives roughly 13% false alarms over 20-boot windows (ad hoc simulation in [PROJECT_GUIDE.md](../PROJECT_GUIDE.md)). Sequence-level calibration fixes that for the Python detector.
 
-**7. Were the validation false alarms real?**
-Two runs at the same threshold gave 14 / 1000 (final) and 9 / 1000 false alarms, pooled 23 / 2000, about 1%; the difference between them is not significant (Fisher p = 0.40). The saved telemetry shows each false alarm is a large one-sided slowdown of one or two sub-stages (z up to +68.9, MD 11.8 to 171.5 against a threshold of 10.84), so they are timing spikes and not borderline calibration cases. The likely cause is the host pausing the emulator, which SysTick follows; that is not confirmed. The real glitch is the opposite direction (`sub_b` drops, MD 19 to 32), so a signed rule would not have alarmed on any of them, but that is untested. The final run detected all 1000 attacks; the earlier run (built before the overflow fix, with a weaker glitch) missed 3, probably because of that weaker glitch, not proven. One more caveat to volunteer: the training set probably excludes such spikes because the collection firmware halts on alarm and an alarmed boot prints no data (four boot ids are absent); this is consistent with the data, not proven. Do not guess beyond this in the room.
+**7. Why does Mahalanobis work on the frozen 4-checkpoint firmware but fail on the 8-checkpoint firmware?**
+The frozen firmware's training set (496 boots, halting-build collection) had 0 CP2 spikes above 1.5× median (earlier data had 5). The 8-checkpoint training set (300 boots, non-halting) has 24 boots with spikes somewhere at CP1-CP7, 4 at CP3. Those spikes set the max-based threshold high (H = 1.25× max clean MD is two-sided), and about 14% of future clean boots trigger it. At CP3 only, the rate is 5.7% (17 of 300 validation boots), which matches the frozen 1.4% roughly — the frozen result was likely a selection effect (halting build dropped spiked boots), not proven. The current detector uses Mahalanobis at CP3 only with a warning, not a halt. Full analysis in [docs/MAHALANOBIS_ANALYSIS.md](../docs/MAHALANOBIS_ANALYSIS.md).
 
 **8. How do you know the fixed-point code is correct?**
 Host test in `tests/test_firmware_detector.c` verifies the firmware's own C code: the square root stays within 1 LSB over 2 million values, the distance stays within 0.0008 of floating point on 3 million random inputs (except where the true distance exceeds 180 and the fixed-point value saturates at 181.02 by design), and extreme inputs alarm. The sqrt history (ISSUE-008) and the overflow flaw (ISSUE-014: a squared distance of 32768 or more wrapped and read as zero, so a huge timing value would not alarm; fixed by clamping and saturating) show why the tests matter. There are no automated unit tests for the bootrom integration; the project is a research prototype.
@@ -40,10 +40,10 @@ Show the scope table ([STATUS.md](../STATUS.md#5-scope-versus-the-phase-0-propos
 Both were scheduled for Phase 2 in the proposal, and doing them early validated that the detector fits a no-FPU, no-libgcc environment. It did not replace the missing Phase 1 items.
 
 **12. Latency, RAM and flash cost?**
-Footprint is measured: 1,060 bytes of detector code, 3,152 bytes for the whole firmware, 64 bytes of bss (`arm-none-eabi-size`, [STATUS.md](../STATUS.md#resource-footprint-measured-and-latency-not-yet-measured)). Latency is not measured; say you will time `cusum_update` with SysTick and give no cycle figure until then.
+Footprint measured at `-O0`: floor detector 140 B text, Mahalanobis 1060 B text, whole firmware 4692 B text. RAM negligible (boot_log array, detector state). Latency not yet measured; will time with SysTick in Phase 2.
 
 **13. What fault models can you actually represent?**
-One: skipping the sub-stage B loop. No instruction skip, repeat, register or flash-read corruption. Phase 2 uses debugger-based injection and possibly voltage glitching.
+Six: five skipped loops (one sub-stage removed, 80-90% reduction) at CP1, CP3 (three variants) and CP7, plus one extra loop (CP3 sub_c +84%). See [FAULT_MODELS.md](../FAULT_MODELS.md). No instruction skip, repeat, register corruption or voltage glitch. Phase 2 adds debugger-based injection and hardware fault injection.
 
 ## Effort and process
 

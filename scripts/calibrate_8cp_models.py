@@ -9,7 +9,7 @@ Usage:
     python scripts/calibrate_8cp_models.py
 
 Input:
-    data/ds1_clean.csv (281 boots × 8 checkpoints)
+    data/ds1_clean.csv (300 boots × 8 checkpoints)
 
 Output:
     data/model_8cp.npz - Contains arrays indexed by checkpoint:

@@ -12,22 +12,13 @@ Numbers come from `scripts/mahalanobis_failure_analysis.py` ([results/mahalanobi
 
 ## 2. When it worked: the frozen 4-checkpoint firmware
 
-Monitored checkpoint is CP2 of that firmware. Training set `data/nominal_boots.csv`, 496 boots.
+Monitored checkpoint is CP2 of that firmware (git tag `phase1-review-freeze-2`). Full results in [STATUS.md](../STATUS.md#frozen-firmware-4-checkpoints-tag-phase1-review-freeze-2-firmware-detector-1000-boot-validation).
 
-| Property | Measured |
-|----------|----------|
-| Spiked training boots (any CP2 sub-stage above 1.5x its median) | 0 of 496 (largest is 1.29x) |
-| CP2 mean and std (sub_a / sub_b / sub_c) | 695 / 583 / 502 and 61 / 61 / 50 |
-| Clean MD, largest | 8.7 |
-| Firmware threshold H | 10.84 (1.25 x 8.7) |
-| Glitched MD | 19.1 to 31.9 (1.8x to 2.9x H) |
-| 1000-boot validation | 14 false alarms (1.4%), 1000 / 1000 detected |
+The key property: that training set contained 0 spiked boots at CP2 (largest is 1.29× median). The covariance was fitted on tight data, so the covariance was small and a skipped loop (about 85% of sub_b) landed far outside it.
 
-It worked because the covariance was fitted on tight data, so the covariance was small and a skipped loop (about 85% of sub_b) landed far outside it.
-
-Two caveats from the same data:
-- **The false alarms are spikes.** 11 of the 14 false alarms have a CP2 sub-stage above 1.5x the training median, so the test boots had spikes at a rate of at least 1.1%. A spike-free training set of 496 boots would be unlikely at that rate (probability 0.4%).
-- **Evidence for a selection effect.** An earlier collection of 500 boots from the firmware before the detector existed (commit 051046f, nothing could be dropped) has 5 boots with a CP2 sub-stage above 1.5x the median (3 above 3x). The 496-boot re-collection with the halting firmware has none, and 4 boot ids (26, 116, 386, 479) are absent. This fits the hypothesis that the halting build dropped the spiked boots when the detector alarmed on them. It is not proven: the two collections use different builds (timing differs, for example CP2 sub_b mean 562 against 583), and the repository does not record why those four are missing. A direct test is to re-collect the 4-checkpoint firmware with `-DCOLLECT_MODE`.
+Two caveats:
+- **The false alarms are spikes.** 11 of the 14 false alarms in the 1000-boot validation have a CP2 sub-stage above 1.5× the training median, so the test boots had spikes at a rate of at least 1.1%. A spike-free training set of 496 boots would be unlikely at that rate (probability 0.4%).
+- **Evidence for a selection effect.** An earlier collection of 500 boots from the firmware before the detector existed (commit 051046f) has 5 boots with a CP2 sub-stage above 1.5× the median (3 above 3×). The 496-boot re-collection with the halting firmware has none, and 4 boot ids are absent. This fits the hypothesis that the halting build dropped the spiked boots when the detector alarmed on them. It is not proven.
 - **"1000 / 1000" is conditional** on that spike-free training set and on one large fault.
 
 ## 3. When it failed: the 8-checkpoint firmware
@@ -110,22 +101,24 @@ Rule: alarm if any monitored sub-stage is below `f x` its clean median. A skippe
 
 Held-out, `f` from 0.4 to 0.5 (21 sub-stages at CP1-7, [results/detector_comparison.txt](../results/detector_comparison.txt) sections 3 and 3b):
 
-| Quantity | f = 0.4 | f = 0.5 |
-|----------|--------:|--------:|
-| Clean false alarms, CP1-7 (pooled 300 test boots, interleaved and time-ordered pairs) | 0 | 0 |
-| Alarms at untouched checkpoints of the fault builds (of 3000) | 0 | 0 |
-| Worst-split detection of the five faults (of 300) | 298 | 299 |
-| Misses per fault, pooled over two splits (of 600) | 0 to 4 | 0 to 2 |
+| Quantity | f = 0.4 | f = 0.45 (firmware) | f = 0.5 |
+|----------|--------:|--------:|--------:|
+| Clean false alarms, CP1-7 (pooled 300 test boots, interleaved and time-ordered pairs) | 0 | 0 | 0 |
+| Alarms at untouched checkpoints of the fault builds (of 3000) | 0 | 0 | 0 |
+| Worst-split detection of the five faults (of 300) | 298 | 298-300 | 299 |
+| Misses per fault, pooled over two splits (of 600) | 0 to 4 | 0-2 (firmware validation) | 0 to 2 |
 
-Synthetic severity sweep, sub_b reduced at CP3, detection by reduction: f = 0.5 gives 5% at 30%, 33% at 40%, 50% at 50%, 98% at 60%. The floor catches reductions of roughly 60% or more reliably and misses reductions under about 30%.
+Synthetic severity sweep, sub_b reduced at CP3, detection by reduction: f = 0.45 gives 3% at 30%, 21% at 40%, 45% at 50%, 94% at 60%. The floor catches reductions of roughly 55% or more reliably and misses reductions under about 30%.
 
 Cost: about 140 bytes of code at `-O0` for the compare loop, against about 1060 bytes for the current detector (measured ad hoc with `arm-none-eabi-gcc`, not saved in the repository), and 21 small constants, with no multiply, square root or fixed-point arithmetic.
 
+**Firmware validation (f = 0.45, fresh boots):** 0 of 300 clean false alarms, 298-300 of 300 detected on five skipped-loop faults. See [STATUS.md](../STATUS.md#current-firmware-8-checkpoints-validation-on-fresh-boots) and [FAULT_MODELS.md](../FAULT_MODELS.md).
+
 Limits to state when presenting:
-- **`f` was chosen after seeing fault data.** Confirm on a fresh collection.
-- **Little headroom above 0.5.** An untouched sub-stage in a fault build ran down to 0.51 of the clean-build median (FT-1 build, CP3). At f = 0.55, 30 of 3000 untouched-checkpoint boots alarm. The cause of the build-to-build difference is not identified, so recalibrate the floor table for every firmware build.
-- **FT-5 (extra work, +84%) is not covered.** A ceiling at 1.5x median detects 88% of FT-5 but alarms on 14% of clean boots across the 21 sub-stages (1% at CP3 sub_c alone).
-- **Host load.** Under heavy CPU load the SysTick wraps; of 60 loaded boots, 28 had zero sub-stage readings, and the floor alarmed on 27 of 60 (and on 0 of the other 32). Validate on an idle host and add a wrap guard before shipping.
+- **`f` was chosen after seeing fault data.** The validation set is fresh, but the faults and builds are the same kinds, so it checks the calibration, not the choice of rule.
+- **Little headroom above 0.5.** An untouched sub-stage in a fault build ran down to 0.51 of the clean-build median (FT-1 build, CP3). At f = 0.55, 30 of 3000 untouched-checkpoint boots alarm. The cause of the build-to-build difference is not identified (ISSUE-016), so recalibrate the floor table for every firmware build.
+- **FT-5 (extra work, +84%) is not covered by the floor.** The Mahalanobis warning catches it (300 of 300). A ceiling at 1.5× median would detect 88% of FT-5 but alarm on 14% of clean boots across the 21 sub-stages.
+- **Timer guard untested.** Under heavy CPU load the SysTick wraps or stalls. The firmware has a guard (`timer_ok()`) that rejects inconsistent checkpoints and skips both detectors (fail-open, ISSUE-019); it never fired in validation.
 
 ## 6. Lessons
 
