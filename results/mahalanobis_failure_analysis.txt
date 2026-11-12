@@ -1,0 +1,52 @@
+A. TIMING SPIKES IN THE 8-CP CLEAN SET (300 boots). Boots with any sub-stage above the multiple of its checkpoint median:
+   multiple   CP1  CP2  CP3  CP4  CP5  CP6  CP7   any of CP1-7
+   > 1.5x       4    2    6   10    5    7    9    42
+   > 2.0x       4    1    6    6    5    6    8    36
+   > 3.0x       3    1    4    4    2    4    6    24
+
+B. THE ONE-SHOT THRESHOLD AT CP3 (Gaussian fitted on all 300 clean boots, in-sample)
+   largest clean MD 16.7  ->  H = 1.25 x max = 20.9
+   attack MD: median 3.1, 90th percentile 3.4, max 36.3
+   CP3 sub_b std: 286 with all boots, 113 without the 6 boots above 1.5x median
+
+C. DOES THE SCORE SEPARATE? AUC = P(faulted boot scores above a held-out clean boot) at the faulted checkpoint, mean of 4 splits (0.5 none, 1.0 perfect)
+   fault       full-cov, robust (MCD), two-sided       diagonal, median/MAD, two-sided   diagonal, median/MAD, low side only
+   attack                                  0.980                                 0.980                                 0.999
+   ft1                                     0.983                                 0.976                                 0.985
+   ft2                                     0.969                                 0.869                                 0.882
+   ft3                                     0.971                                 0.974                                 1.000
+   ft4                                     0.968                                 0.983                                 1.000
+
+D. ROBUST FIT, SAME KIND OF THRESHOLD. FA pooled over 4 held-out splits (600 clean test boots); detection = worst split of 300.
+   fit                  threshold   FA cp3  FA cp1-7   attack  ft1  ft2  ft3  ft4
+   robust diag          1.25max        2        24      0     0     0     1     0
+   robust diag          q99.9          3        30      1     0     0     2     0
+   robust diag          q99            9        78      1     1     0     4     0
+   robust diag          q97.5         16       112    299    42     1     5   300
+   robust diag          q95           33       143    300   298   114   300   300
+   robust MCD           1.25max        3        25      1     0     0     2     0
+   robust MCD           q99.9          3        32      1     0     0     4     0
+   robust MCD           q99            8        68      1     1     0     4     0
+   robust MCD           q97.5         17       114    251   262     1     4     0
+   robust MCD           q95           36       185    300   300   299   300   299
+
+E. TRIM SPIKED BOOTS FROM TRAINING, THEN H = 1.25 x max training MD (per checkpoint, full-cov Gaussian). Pooled over 4 held-out splits.
+   xbuild = boots (out of 6000 = 300 boots x 5 fault builds x 4 splits) with an alarm at any checkpoint the fault does not touch.
+   trim T    FA cp3/600  FA cp1-7/600   worst-split detection /300: attack  ft1  ft2  ft3  ft4   xbuild
+   none              5           54      1     0     1     3     0      272
+   >3.0x median     11           78      3     3     1     5     1      504
+   >2.0x median     14           87    300   216   292     5   192      625
+   >1.5x median     14           94    300   216   292   300   192      760
+   >1.35x median     14           97    300   300   299   300   192      818
+   per split at T = 1.5 (detection /300 | FA /150 at CP3, CP1-7):
+   intA   attack=300 ft1=300 ft2=292 ft3=300 ft4=192 | 2, 19
+   intB   attack=300 ft1=216 ft2=300 ft3=300 ft4=300 | 5, 28
+   timeA  attack=300 ft1=299 ft2=299 ft3=300 ft4=196 | 3, 30
+   timeB  attack=300 ft1=300 ft2=300 ft3=300 ft4=300 | 4, 17
+
+F. THE FROZEN 4-CP DATA (monitored checkpoint = CP2 of that firmware)
+   training set: 496 boots, missing ids [26, 116, 386, 479]
+   training boots with any CP2 sub-stage > 1.5x median: 0 of 496
+   training boots with any sub-stage > 3x median, by checkpoint: CP1 3, CP2 0, CP3 3
+   1000-boot validation: 14 false alarms, of which 11 have a CP2 sub-stage > 1.5x the training median (so the test boots had spikes at >= 1.1%)
+   chance of 0 spiked boots in 496 if the spike rate were 1.1%: 0.0041
