@@ -108,7 +108,7 @@ Held-out, `f` from 0.4 to 0.5 (21 sub-stages at CP1-7, [results/detector_compari
 | Worst-split detection of the five faults (of 300) | 298 | 298-300 | 299 |
 | Misses per fault, pooled over two splits (of 600) | 0 to 4 | 0-2 (firmware validation) | 0 to 2 |
 
-Synthetic severity sweep, sub_b reduced at CP3, detection by reduction: f = 0.45 gives 3% at 30%, 21% at 40%, 45% at 50%, 94% at 60%. The floor catches reductions of roughly 55% or more reliably and misses reductions under about 30%.
+Synthetic severity sweep, sub_b reduced at CP3, detection by reduction: the f = 0.45 floor (fig 4, results/slide_plots_data.txt) detects 0% at 30%, 26% at 40%, 33% at 50%, 96% at 60%. It catches reductions of about 60% or more reliably and misses those under about 35%.
 
 Cost: about 140 bytes of code at `-O0` for the compare loop, against about 1060 bytes for the current detector (measured ad hoc with `arm-none-eabi-gcc`, not saved in the repository), and 21 small constants, with no multiply, square root or fixed-point arithmetic.
 

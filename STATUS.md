@@ -37,7 +37,7 @@ Seven builds (clean, five faults, the original attack) x 300 boots each, collect
 
 How to read it honestly:
 - The floor rule has the threshold chosen (F = 0.45) after seeing the fault data. The validation set is fresh, but the faults and builds are the same kinds, so it checks the calibration, not the choice of rule. Usable F is roughly 0.30 to 0.50 (offline sweep, [results/detector_comparison.txt](results/detector_comparison.txt)).
-- The faults are whole-loop removals (about 80 to 90% shorter sub-stage). The floor rule catches reductions of roughly 55% or more reliably and misses reductions below about 30% (synthetic sweep). QEMU cannot produce partial skips (ISSUE-012), so no firmware severity curve exists.
+- The faults are whole-loop removals (about 80 to 90% shorter sub-stage). The floor rule catches reductions of about 60% or more reliably and misses those below about 35% (synthetic sweep, fig 4). QEMU cannot produce partial skips (ISSUE-012), so no firmware severity curve exists.
 - 15 of the 17 Mahalanobis false alarms on clean boots had a CP3 sub-stage above 1.5x the median (timing spikes). That is why Mahalanobis only warns: halting on it would stop about 6% of good boots. Why it fails here and when it worked: [docs/MAHALANOBIS_ANALYSIS.md](docs/MAHALANOBIS_ANALYSIS.md).
 - Faults were injected at CP1, CP3 and CP7. The floor check at CP2, CP4, CP5 and CP6 was exercised by clean boots only (no false alarms), not by a fault.
 - The timer guard (skip the checks when SysTick readings are inconsistent) never fired in these runs, so that path is untested in firmware (ISSUE-019).
@@ -55,7 +55,7 @@ How to read it honestly:
 | ft4 | 300 | 0 | 0 | 0 |
 | ft5 | 0 | 0 | 300 | 0 |
 
-The clean false-alarm rate for Mahalanobis (7/300 = 2.3%, Wilson 95% CI 1.1 to 4.7%) is tighter here than in collect mode (5.7%), probably because the overhead of the halt check reduces timing noise. The floor rule had 0 false alarms. FT-3 (CP7 fault) had 1 escape in 300 boots, likely a timing spike in the clean direction. FT-5 (extra loop, longer sub-stage) was caught only by the Mahalanobis warning, as designed.
+The clean false-alarm rate for Mahalanobis (7/300 = 2.3%, Wilson 95% CI 1.1 to 4.7%) is lower here than in the collect-mode validation (17/300 = 5.7%). Both are single runs on different days with different binaries; the difference is not explained and no cause is claimed. The floor rule had 0 false alarms. FT-3 (CP7 fault) had 1 escape in 300 boots, cause not investigated. FT-5 (extra loop, longer sub-stage) was caught only by the Mahalanobis warning, as designed.
 
 ### Frozen firmware (4 checkpoints, tag `phase1-review-freeze-2`): firmware detector, 1000-boot validation
 

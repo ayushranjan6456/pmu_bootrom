@@ -275,7 +275,7 @@ def fig5():
     # false-alarm curves sit on top of each other along the floor.
     fig, axes = plt.subplots(1, 3, figsize=(12.5, 4.4), sharex=True)
     panels = [("Faults missed (worst of the five)", miss, 105),
-              ("Alarms at checkpoints the fault does not touch", xb, 11),
+              ("Alarms at untouched checkpoints", xb, 11),
               ("False alarms on clean boots", fa, 2.2)]
     for ax, (ttl, ys, top) in zip(axes, panels):
         ax.axvspan(0.30, 0.50, color=FLOOR, alpha=0.10, lw=0)
