@@ -46,7 +46,7 @@ static inline fixed_t int_to_fixed(int32_t x) {
  * CUSUM DETECTOR MODEL
  * ──────────────────────────────────────────────────────────────────────
  * Contains calibrated parameters from Python training:
- *   - mu: mean vector (3D) for CP2 features [sub_a, sub_b, sub_c]
+ *   - mu: mean vector (3D) for CP3 features [sub_a, sub_b, sub_c]
  *   - cov_inv: inverse covariance matrix (3x3, symmetric)
  *   - k_slack: CUSUM slack parameter (0 for the one-shot configuration)
  *   - H: alarm threshold (with k_slack = 0, alarm when MD > H)
@@ -61,8 +61,8 @@ typedef struct {
 /* ──────────────────────────────────────────────────────────────────────
  * CUSUM DETECTOR STATE
  * ──────────────────────────────────────────────────────────────────────
- * Runtime state for sequential change detection.
- * Initialize once at boot, update at each checkpoint.
+ * Runtime state of the CUSUM accumulator. main.c initialises it once
+ * and updates it once per boot, at CP3 (one-shot use).
  */
 typedef struct {
     fixed_t S;                  /* CUSUM statistic (accumulator) */
@@ -94,7 +94,7 @@ void cusum_init(cusum_state_t *state);
 
 /*
  * Update CUSUM detector with new observation.
- * Call after each checkpoint to check for anomalies.
+ * Call after the monitored checkpoint (CP3 in main.c).
  *
  * Args:
  *   state: Pointer to detector state
@@ -131,7 +131,7 @@ fixed_t mahalanobis_distance(const uint32_t obs[3],
                               const cusum_model_t *model);
 
 /*
- * Integer square root using binary search.
+ * Integer square root, bit-by-bit method (no division).
  * Returns sqrt(x) in Q16.16 format.
  *
  * Args:
@@ -140,7 +140,7 @@ fixed_t mahalanobis_distance(const uint32_t obs[3],
  * Returns:
  *   sqrt(x) in Q16.16 format
  *
- * Accuracy: Error < 0.001 for typical PMU values
+ * Accuracy: within 1 LSB (1.5e-5), tests/test_firmware_detector.c
  */
 fixed_t fixed_sqrt(fixed_t x);
 

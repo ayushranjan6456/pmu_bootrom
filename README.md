@@ -32,16 +32,17 @@ make run
 # Expected output: banner, then a DATA_START ... DATA_END CSV block
 # (cp,elapsed,sub_a,sub_b,sub_c per checkpoint), stage durations,
 # and "=== BOOT COMPLETE ===". A glitched build prints
-# "!!! ATTACK DETECTED at CP2 !!!" and halts instead.
+# "!!! ATTACK DETECTED at CP3 (floor) !!!" and halts instead.
 ```
 
 ### 3. Collect Calibration Data
 
 ```bash
-# Collect 300 clean boots (~4 minutes)
-bash scripts/collect_fault_types.sh data/cal_clean app_collect.elf 300
+# Rebuilds all 7 ELFs and runs 300 boots of each (about 35 minutes)
+bash scripts/collect_fault_types.sh 300 cal
 
-# Output: data/cal_clean.csv and data/cal_clean_boots.csv
+# Output: data/cal_<variant>.csv, data/cal_<variant>_boots.csv, data/cal_meta.txt
+# Calibration uses data/cal_clean.csv
 ```
 
 ### 4. Calibrate Detectors
@@ -66,11 +67,8 @@ make clean && make
 ### 5. Validate Detectors
 
 ```bash
-# Collect fresh validation boots (all 7 variants)
-bash scripts/collect_fault_types.sh data/val_clean app_collect.elf 300
-bash scripts/collect_fault_types.sh data/val_attack app_attack.elf 300
-bash scripts/collect_fault_types.sh data/val_ft1 app_ft1.elf 300
-# ... (ft2, ft3, ft4, ft5)
+# Fresh validation boots, all 7 variants (a separate collection from the calibration one)
+bash scripts/collect_fault_types.sh 300 val
 
 # Test firmware detector against validation data
 python scripts/validate_firmware.py
@@ -121,101 +119,66 @@ pmu_bootrom/
 ### Build Targets
 
 ```bash
-make all          # Build nominal firmware
-make clean        # Clean build artifacts
-make run          # Run in QEMU
-make collect      # Collect 500 boot samples
-make debug-server # Start QEMU for GDB
+make              # halting firmware (app.elf): the floor rule stops the boot
+make run          # one boot in QEMU (Ctrl-A X to quit)
+make clean
+make app_collect.elf app_attack.elf app_ft1.elf ... app_ft5.elf   # non-halting data-collection builds
+make debug-server # QEMU paused for GDB
 ```
 
-### Data Collection
+### Data collection
 
 ```bash
-# Collect nominal boots
-make collect
-# Output: data/nominal_boots.csv
-
-# Verify data quality
-python scripts/data_quality.py
+bash scripts/collect_fault_types.sh 300 cal   # all 7 variants, writes data/cal_*.csv
 ```
 
 ### Analysis
 
 ```bash
 source .venv/bin/activate
-
-# Train model and calibrate thresholds
-python scripts/build_model.py
-
-# Run detector simulation with ROC curves
-python scripts/cusum_detector.py
-
-# Visualize cycle stability
-python scripts/visualize.py
-
-# Compare Mahalanobis against plain sub_b thresholds (run from pmu_bootrom/)
-python scripts/baseline_comparison.py
-# Needs data/nominal_boots.csv and data/attack_boots.csv. Results: STATUS.md
+python scripts/detector_comparison.py          # held-out comparison, severity sweep
+python scripts/mahalanobis_failure_analysis.py # why the one-shot Mahalanobis rule fails
+python scripts/validate_firmware.py            # firmware vs Python mirror on fresh boots
+python scripts/make_slide_plots.py             # figures 1-6
 ```
 
 ### Testing
 
 ```bash
-# Test clean boot (expect no alarm)
-make clean && make
-timeout 0.5 make run </dev/null | grep "ATTACK DETECTED" || echo "Clean ✓"
+# Real halting builds, 300 boots per variant (rebuilds app.elf: run it alone)
+bash scripts/test_halting_build.sh
 
-# Test glitch attack (expect alarm)
-make clean
-make CFLAGS="-mcpu=cortex-m33 -mthumb -O0 -g -Wall -fno-builtin -DGLITCH_ATTACK" app.elf
-timeout 0.5 make run </dev/null | grep "ATTACK DETECTED" && echo "Detected ✓"
-
-# Run full test suite
-bash scripts/test_firmware_detector.sh
-
-# Partial-skip glitch sweep (N boots per setting, default 20)
-# Run these scripts one at a time: both run `make clean` and rebuild the shared app.elf.
-PCTS="25 50 75" N=20 bash scripts/severity_sweep.sh
-# Rebuilds app.elf at the end. In QEMU the result does not depend on the skip
-# percentage (see STATUS.md, "Firmware partial-severity sweep"), so use it
-# for the experiment, not for a detection-versus-severity claim.
+# Host test of the fixed-point Mahalanobis code (square root, overflow, latching)
+gcc -O1 -o /tmp/host_test tests/test_firmware_detector.c src/cusum_detector.c -lm && /tmp/host_test
 ```
+
+The old 4-checkpoint pipeline (`build_model.py`, `cusum_detector.py`, `baseline_comparison.py`, `severity_sweep.sh`, `test_firmware_detector.sh`, ...) is in [archive/old_scripts/](archive/old_scripts/). It produced the frozen-firmware results quoted in STATUS.md and is not maintained.
 
 ---
 
 ## How It Works
 
-### Boot Flow
+### Boot flow
 
-1. **SysTick Init** - Start 24-bit cycle counter
-2. **CUSUM Init** - Initialize detector state (S=0)
-3. **Boot Stages** - Four stages with checkpoints:
-   - CP0: UART Init
-   - CP1: Memory Init
-   - CP2: Signature Verify (PRIMARY TARGET)
-   - CP3: Key Derivation
-4. **Detection** - Check timing anomaly at CP2
-5. **Response** - Halt boot if attack detected
+1. `systick_init()` starts the 24-bit cycle counter, then UART and the banner.
+2. CP0 records the time origin.
+3. Seven stages follow, each with three timed sub-stages (a, b, c): memory init (CP1), boot-mode detect (CP2), **signature verify (CP3, main target)**, decrypt (CP4), integrity (CP5), memory setup (CP6), handoff (CP7).
+4. After each stage `check_checkpoint()` runs the **floor rule** (halts the boot) and, at CP3 only, the **Mahalanobis rule** (warns only).
+5. A surviving boot prints its 8 telemetry rows and `BOOT COMPLETE`.
 
-### Feature Vector
+### Floor rule
 
-Each checkpoint captures 4D vector:
-- `elapsed`: Total cycles since boot start
-- `sub_a`, `sub_b`, `sub_c`: Per-substage execution times
+Alarm if any sub-stage is below `0.45 x` its clean median (`src/floor_table.h`, generated by `scripts/calibrate_floor.py`).
 
-### CUSUM Algorithm
+### Mahalanobis rule (CP3)
 
 ```
-For each checkpoint:
-  1. MD = sqrt((x-μ)' Σ⁻¹ (x-μ))    # Mahalanobis distance
-  2. S = max(0, S + MD - k)          # CUSUM update
-  3. if S > H: ALARM                 # Threshold check
+MD = sqrt((x-mu)' S^-1 (x-mu))   # x = [sub_a, sub_b, sub_c], Q16.16 fixed point
+S  = max(0, S + MD - k)          # called once per boot, so k = 0 and S = MD
+alarm if S > H
 ```
 
-**Parameters:**
-- μ: Mean vector, Σ⁻¹: inverse covariance matrix (3×3)
-- k, H: see `CUSUM_MODEL` in `src/cusum_detector.c`. Firmware runs once per boot, so k = 0 and the alarm is MD > H.
-  The Python simulation uses a different, sequential k and H (see FIRMWARE_DETECTOR.md).
+`mu`, `S^-1`, `k`, `H` are `CUSUM_MODEL` in `src/cusum_detector.c`, generated by `scripts/calibrate_firmware.py`. Design and results: [FIRMWARE_DETECTOR.md](FIRMWARE_DETECTOR.md), [STATUS.md](STATUS.md).
 
 ---
 
@@ -248,20 +211,20 @@ sudo apt install qemu-system-arm
 - Solution: Fixed in v0.3 (SysTick initialization order)
 - Verify fix: `make run` should show CP0 elapsed < 2000
 
-**Problem:** False alarms on clean boots
-- Likely cause: Model not calibrated for current firmware
-- Solution: Recollect data and retrain model
+**Problem:** Floor rule halts clean boots
+- Likely cause: the floor table was generated from a different binary (the same code runs up to about 28% differently across builds, ISSUE-016), or the host was under heavy load
+- Solution: recollect clean boots with the binary you will run, then
 ```bash
-make collect
-python scripts/calibrate_firmware.py
-# Update src/cusum_detector.c with new parameters
+bash scripts/collect_fault_types.sh 300 cal   # all 7 variants, writes data/cal_*.csv
+python scripts/calibrate_floor.py data/cal_clean.csv 0.45   # rewrites src/floor_table.h
+python scripts/calibrate_firmware.py data/cal_clean.csv 3 data/ds1_attack.csv   # paste into src/cusum_detector.c
 make clean && make
 ```
 
 **Problem:** Attacks not detected
-- Check glitch severity in main.c (should skip entire sub_b loop)
-- Verify the model was regenerated with `scripts/calibrate_firmware.py` and pasted into `src/cusum_detector.c` (alarm when MD > H)
-- Compute the Mahalanobis distance of a boot offline from its `sub_a`, `sub_b`, `sub_c` values using the embedded `mu` and `cov_inv`
+- Check `TIMER_INVALID,<cp>` in the output: an inconsistent SysTick reading makes both detectors skip that checkpoint (ISSUE-019)
+- Check that the floor table and `CUSUM_MODEL` came from the same binary being run
+- Extra-work faults (FT-5) are invisible to the floor rule by design; only the Mahalanobis warning sees them (ISSUE-018)
 
 ### QEMU Issues
 
@@ -288,77 +251,49 @@ See the document map in [STATUS.md](STATUS.md#8-document-map).
 
 ## Development Workflow
 
-### Typical Development Cycle
+1. Edit `src/main.c` or a detector.
+2. `make clean && make`, then `make run`.
+3. Any change to boot-stage timing needs recalibration (floor table and Mahalanobis constants) on the same binary: collect, calibrate, rebuild, validate.
 
-1. **Modify firmware** - Edit `src/main.c` or detector
-2. **Rebuild** - `make clean && make`
-3. **Test** - `make run` or test suite
-4. **Iterate** - Fix issues and repeat
+### Adding a boot stage
 
-### Adding New Boot Stages
+1. Add a `stage_*()` function in `main.c` with three timed sub-stages (a, b, c).
+2. Call it from `main()` with `pmu_checkpoint(N)` and `check_checkpoint(N, &detector)` after it.
+3. Raise `NUM_CHECKPOINTS` in `main.c` and `FLOOR_NUM_CP` in `floor_detector.h`.
+4. Update `EXPECTED_CPS` in `scripts/collect_fault_types.sh` and the scripts that assume 8 checkpoints, then recollect and recalibrate.
 
-1. Edit `main.c`: Add new `stage_*()` function
-2. Split into 3 substages (A, B, C)
-3. Call `pmu_checkpoint(N)` after stage
-4. Increment `NUM_CHECKPOINTS` constant
-5. Update all scripts to handle new CP index
-6. Recollect data and retrain model
+### Fault macros (compile-time, all in `main.c`)
 
-### Modifying Attack Simulation
+| Flag | Effect |
+|------|--------|
+| `-DGLITCH_ATTACK` | CP3 sub_b loop removed (`GLITCH_SKIP_PCT` defaults to 100) |
+| `-DGLITCH_FT1_CP1_MEMCHECK` | CP1 sub_b loop removed |
+| `-DGLITCH_FT2_CP2_COMPARE` | CP3 sub_c loop removed |
+| `-DGLITCH_FT3_CP7_HANDOFF` | CP7 sub_a loop removed |
+| `-DGLITCH_FT4_CP2_DOUBLE` | CP3 sub_a and sub_b loops removed |
+| `-DGLITCH_FT5_CORRUPT_FLAG` | 50 extra iterations in CP3 sub_c |
+| `-DCOLLECT_MODE` | Alarms are printed but the boot never halts, so telemetry is always printed |
 
-The glitch lives in the `#ifdef GLITCH_ATTACK` block in `stage_signature_verify()` (`src/main.c`). It shortens the sub-stage B loop (300 iterations clean).
+Details and measured effects: [FAULT_MODELS.md](FAULT_MODELS.md). In QEMU a partial skip (`-DGLITCH_SKIP_PCT=<n>`) is not distinguishable from no skip (ISSUE-012).
 
-| Build flag | Effect |
-|------------|--------|
-| `-DGLITCH_ATTACK` | Skips the whole sub-stage B loop (default, `GLITCH_SKIP_PCT=100`) |
-| `-DGLITCH_SKIP_PCT=<n>` | Skips n percent of the iterations (loop bound becomes `300 * (100 - n) / 100`) |
-| `-DCOLLECT_MODE` | Detector reports but does not halt, so telemetry is still printed (used by `make collect-attack`) |
+### Key files
 
-```bash
-make CFLAGS="-mcpu=cortex-m33 -mthumb -O0 -g -Wall -fno-builtin -DGLITCH_ATTACK -DGLITCH_SKIP_PCT=50" app.elf
-```
-
-Note: in QEMU, `sub_b` barely changes until the loop is removed completely, so partial skips are not distinguishable from a clean boot. Details and numbers: [STATUS.md](STATUS.md), section "Firmware partial-severity sweep".
-
-### Adjusting Detection Sensitivity
-
-**Option 1: Firmware threshold.** The firmware runs once per boot, so `k = 0` and the alarm is MD > H. Change `MARGIN` in `scripts/calibrate_firmware.py` (H = MARGIN x largest clean MD), regenerate, and paste the output into `src/cusum_detector.c`. Then re-run the validation.
-
-**Option 2: Python detector threshold** (`k` is the 70th percentile of clean MD, set in `build_model.py`)
-- Edit `build_model.py` after line fitting
-- Use `H_99` (1% FA) or `H_999` (0.1% FA)
-- Regenerate model with `make collect && python scripts/build_model.py`
-
----
-
-## Key Files Reference
-
-| File | Purpose | When to Edit |
-|------|---------|--------------|
-| `src/main.c` | Boot stages | Add stages, change attack |
-| `src/cusum_detector.c` | Embedded model | After calibration |
-| `scripts/build_model.py` | Model training | Change threshold, features |
-| `scripts/calibrate_firmware.py` | C code gen | Model structure change |
-| `Makefile` | Build system | Add sources, change flags |
+| File | Purpose |
+|------|---------|
+| `src/main.c` | Boot stages, timer guard, alarm response |
+| `src/floor_detector.c`, `src/floor_table.h` | Floor rule and its generated table |
+| `src/cusum_detector.c` | Fixed-point Mahalanobis rule and its generated constants |
+| `scripts/calibrate_floor.py`, `scripts/calibrate_firmware.py` | Generate the two tables from clean boots |
+| `scripts/fw_model.py` | Bit-exact Python mirror of the firmware arithmetic |
+| `Makefile` | Halting build, collection builds, fault builds |
 
 ---
 
 ## Testing Strategy
 
-### Unit Tests (Manual)
-- Fixed-point arithmetic verification
-- Mahalanobis distance calculation
-- CUSUM update logic
-
-### Integration Tests (Automated)
-- `test_firmware_detector.sh` - Full detection test
-- Clean boot FA test (20 boots)
-- Attack detection test (20 boots)
-
-### System Tests (Manual)
-- End-to-end boot with detector
-- Memory footprint measurement
-- Timing latency measurement
+- Host test of the fixed-point code: `tests/test_firmware_detector.c`.
+- Firmware against its Python mirror on fresh boots: `scripts/validate_firmware.py` (0 disagreements on 2100 boots).
+- Real halting builds: `scripts/test_halting_build.sh`.
 
 ---
 

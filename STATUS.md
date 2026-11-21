@@ -61,7 +61,7 @@ The clean false-alarm rate for Mahalanobis (7/300 = 2.3%, Wilson 95% CI 1.1 to 4
 
 The numbers in the rest of this section belong to the frozen firmware, built from `data/nominal_boots.csv` (496 clean boots, halting-build collection) and the single `-DGLITCH_ATTACK` fault. Re-running the 8-checkpoint data showed that its 1000/1000 result depended on a training set without timing spikes ([docs/MAHALANOBIS_ANALYSIS.md](docs/MAHALANOBIS_ANALYSIS.md), ISSUE-017).
 
-Run with `N=1000 bash scripts/test_firmware_detector.sh`. Raw log: [results/validation_1000.log](results/validation_1000.log).
+Run with `N=1000 bash archive/old_scripts/test_firmware_detector.sh`. Raw log: [results/validation_1000.log](results/validation_1000.log).
 
 | Test | Result |
 |------|--------|
@@ -152,7 +152,7 @@ The harness saved the telemetry of each false alarm (`results/false_alarms.csv`,
 - Timing spikes also exist in the training data at other checkpoints: 7 of the 496 boots have a spike at CP1 or CP3 (up to `sub_b` = 4653). CP2 has none. At the validation rate (23 / 2000) the chance of no spike in 496 boots at CP2 is about 0.3%, so something removed them (next paragraph).
 - Harness differences do not explain the spikes: in an interleaved test run by the external audit (collect-style against validation-style captures) the medians matched (p = 0.86 / 0.19 / 0.50) and spikes appeared under both. That test is not in the repo.
 
-**Probable selection effect in the training set (consistent with the data, not proven):** `make collect` runs the halting firmware (`app.elf`). A boot that alarms prints no data block, so it is silently dropped. The external audit saw 5 of 240 captures with no CP2 row, all of them alarms (not reproduced here). The four absent ids (26, 116, 386, 479) are probably such boots (4 of 500 is close to the 5.75 expected at 1.15%). If so, the training set was filtered by the detector, the clean-boot spread is understated, and the 1.25x margin was fitted to a sample without spikes. The way to test it is to collect with a non-halting build (`-DCOLLECT_MODE`) and compare.
+**Probable selection effect in the training set (consistent with the data, not proven):** `make collect` (a target since removed; the old pipeline is in `archive/old_scripts/`) ran the halting firmware (`app.elf`). A boot that alarms prints no data block, so it is silently dropped. The external audit saw 5 of 240 captures with no CP2 row, all of them alarms (not reproduced here). The four absent ids (26, 116, 386, 479) are probably such boots (4 of 500 is close to the 5.75 expected at 1.15%). If so, the training set was filtered by the detector, the clean-boot spread is understated, and the 1.25x margin was fitted to a sample without spikes. The way to test it is to collect with a non-halting build (`-DCOLLECT_MODE`) and compare.
 
 **Status:** The hypothesis is a fit, not a confirmed cause. Confirming it needs the host load during the runs (not recorded), or repeating the alarmed boots in isolation. Alternatives (a real timing spike in the emulator, a UART stall) have not been ruled out.
 
@@ -162,7 +162,7 @@ The harness saved the telemetry of each false alarm (`results/false_alarms.csv`,
 
 ### Baseline comparison (one-shot detectors)
 
-From `scripts/baseline_comparison.py`: all detectors see one boot at CP2 and use a threshold at the 99th percentile of clean training scores. False alarms are measured on held-out clean boots (50/50 split, 200 repeats). Columns 5% to 50% are synthetic `sub_b` reductions applied to held-out clean boots.
+From `archive/old_scripts/baseline_comparison.py`: all detectors see one boot at CP2 and use a threshold at the 99th percentile of clean training scores. False alarms are measured on held-out clean boots (50/50 split, 200 repeats). Columns 5% to 50% are synthetic `sub_b` reductions applied to held-out clean boots.
 
 | Detector | False alarm | Real glitch | 5% | 10% | 20% | 30% | 50% |
 |----------|-------------|-------------|----|-----|-----|-----|-----|
@@ -178,7 +178,7 @@ Reading it honestly:
 
 ### Python simulation (synthetic attacks)
 
-From `scripts/cusum_detector.py`, a timing shift applied to sub-stage B of nominal data, sequential CUSUM over 20-boot windows. Details in [KNOWN_ISSUES.md](KNOWN_ISSUES.md) ISSUE-003.
+From `archive/old_scripts/cusum_detector.py`, a timing shift applied to sub-stage B of nominal data, sequential CUSUM over 20-boot windows. Details in [KNOWN_ISSUES.md](KNOWN_ISSUES.md) ISSUE-003.
 
 **Note:** The detection rates below are for 10 consecutive faulted boots (per stream), not single boots. Each stream is 10 clean boots followed by 10 faulted ones, resampled from the same 496 boots used to fit the model (in-sample). With the same k and H, one faulted boot at 20% severity is detected 2.3% of the time, three boots 83%, ten boots 100%.
 
@@ -194,7 +194,7 @@ ROC AUC at 20% severity: 0.9933 (the script reports it only at 20%). Threshold: 
 
 ### Firmware partial-severity sweep: not possible with QEMU timing
 
-`main.c` accepts `-DGLITCH_SKIP_PCT=<n>` (skips n% of the sub-stage B loop, default 100) and `scripts/severity_sweep.sh` builds and boots each setting. Raw output: [results/severity_sweep.log](results/severity_sweep.log) (2026-11-10, QEMU 8.2.2, N=20 per setting). The sweep shows no dependence on the skip percentage, so no firmware severity curve is reported.
+`main.c` accepts `-DGLITCH_SKIP_PCT=<n>` (skips n% of the sub-stage B loop, default 100) and `archive/old_scripts/severity_sweep.sh` builds and boots each setting. Raw output: [results/severity_sweep.log](results/severity_sweep.log) (2026-11-10, QEMU 8.2.2, N=20 per setting). The sweep shows no dependence on the skip percentage, so no firmware severity curve is reported.
 
 | Skip % | Loop iterations | Detected (of 20) | Median `sub_b` (cycles) |
 |--------|-----------------|------------------|-------------------------|
@@ -254,7 +254,7 @@ Frozen 4-checkpoint firmware:
 | File | Contents |
 |------|----------|
 | `data/nominal_boots.csv` | 496 clean boots, 4 checkpoints each (1985 lines with header). 500 collection runs were made; boots 26, 116, 386 and 479 are absent. Probable cause (consistent with the data, not proven): `make collect` runs the halting firmware, so an alarmed boot prints no data block and is dropped. If so, the training set excludes timing spikes by construction (see "False alarms" in Section 2). Re-collected 2026-11-09. |
-| `data/attack_boots.csv` | 50 boots with the glitch macro on (`make collect-attack`, built with `-DCOLLECT_MODE` so the detector does not halt and telemetry is still printed). 201 lines with header. Re-collected 2026-11-09. |
+| `data/attack_boots.csv` | 50 boots with the glitch macro on (the removed `make collect-attack`, built with `-DCOLLECT_MODE` so the detector does not halt and telemetry is still printed). 201 lines with header. Re-collected 2026-11-09. |
 | `data/model.npz` | Model for the Python sequential detector, fitted on the CP2 features of `nominal_boots.csv` (496 boots; the 2.5 x IQR outlier filter removed none). Rebuilt 2026-11-09. |
 
 Embedded firmware parameters live only in `src/cusum_detector.c` (Mahalanobis) and `src/floor_table.h` (floor), generated by `scripts/calibrate_firmware.py` and `scripts/calibrate_floor.py` (see [FIRMWARE_DETECTOR.md](FIRMWARE_DETECTOR.md)); they are not copied into any document. The current constants were fitted on `data/cal_clean.csv`, not on `nominal_boots.csv`. The firmware does not read `model.npz`; the sequential `k` and `H` in `model.npz` are used only by the Python simulation.

@@ -173,7 +173,7 @@ It also alarms if any CP3 sub-stage exceeds `SUBSTAGE_ALARM_CYCLES` (4096), whic
 
 **`scripts/test_halting_build.sh`** - runs the real halting build (no `COLLECT_MODE`) per variant and counts boots that halted, completed, or completed with a Mahalanobis warning. `N=300 bash scripts/test_halting_build.sh`, writes `results/validation_halting.log`. Run it alone: it rebuilds `app.elf`.
 
-**`scripts/test_firmware_detector.sh`** - the 4-checkpoint-era harness (one glitch, one monitored checkpoint). Its 1000-boot result belongs to the frozen firmware at tag `phase1-review-freeze-2`, not to this code.
+**`archive/old_scripts/test_firmware_detector.sh`** - the 4-checkpoint-era harness (one glitch, one monitored checkpoint). Its 1000-boot result belongs to the frozen firmware at tag `phase1-review-freeze-2`, not to this code.
 
 Results: [STATUS.md](STATUS.md#2-results).
 

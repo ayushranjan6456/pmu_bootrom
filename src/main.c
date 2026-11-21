@@ -2,7 +2,7 @@
 #include "cusum_detector.h"
 #include "floor_detector.h"
 
-/* ── UART (unchanged) ─────────────────────────────────────────────── */
+/* ── UART (polled output) ─────────────────────────────────────────────── */
 #define UART0_BASE    0x50200000
 #define UART0_DATA    (*((volatile uint32_t *)(UART0_BASE + 0x00)))
 #define UART0_STATE   (*((volatile uint32_t *)(UART0_BASE + 0x04)))
@@ -412,9 +412,9 @@ int main(void)
     cusum_state_t detector;
     cusum_init(&detector);
 
-    /* Checkpoint 0: boot start baseline
-     * Note: Includes UART init overhead (~400-1000 cycles)
-     * This is consistent across boots, so doesn't affect detection
+    /* Checkpoint 0: boot start baseline. Includes UART init and the banner
+     * printed over polled UART (median 17,030 cycles in QEMU, data/cal_clean.csv).
+     * CP0 is only the time origin; no detector checks it.
      */
     pmu_checkpoint(0);
 
@@ -456,7 +456,7 @@ int main(void)
     /* ── Output: one line per checkpoint, CSV format ── */
     /*
      * CSV format makes it trivial to pipe into Python for analysis.
-     * Next step: run this 500 times, collect all lines, fit Gaussian.
+     * scripts/collect_fault_types.sh parses the DATA_START..DATA_END block.
      * Format: cp,elapsed,sub_a,sub_b,sub_c
      */
     uart_println("\r\nDATA_START");

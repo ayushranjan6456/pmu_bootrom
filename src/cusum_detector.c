@@ -12,7 +12,7 @@
  *   - Fixed-point Q16.16 arithmetic (no FPU required)
  *   - Model parameters embedded at compile time
  *   - Integer sqrt to avoid 64-bit division
- *   - Footprint and latency: not yet measured (see STATUS.md)
+ *   - Footprint measured, latency not yet measured (see STATUS.md)
  */
 
 #include "cusum_detector.h"

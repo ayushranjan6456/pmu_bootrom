@@ -44,9 +44,7 @@ clean:
 debug-server: $(TARGET)
 	$(QEMU) $(QEMU_FLAGS) -kernel $(TARGET) -s -S
 
-# Convenience target to collect 500 boot samples for the PMU model
-# Old collect target removed - use scripts/collect_fault_types.sh directly
-# Example: bash scripts/collect_fault_types.sh data/cal_clean app_collect.elf 300
+# Data collection: bash scripts/collect_fault_types.sh <N_BOOTS> <PREFIX>   (e.g. 300 cal)
 
 
 # --- Attack Simulation Targets ---
@@ -79,24 +77,6 @@ app_ft4.elf: $(SRCS)
 # FT-5: Variable corruption (adds extra work rather than skipping)
 app_ft5.elf: $(SRCS)
 	$(CC) $(CFLAGS) -DGLITCH_FT5_CORRUPT_FLAG -DCOLLECT_MODE $(LDFLAGS) $^ -o $@
-
-# Convenience target to collect 50 boots under attack
-collect-attack: app_attack.elf
-	@echo "Collecting attacked boot samples..."
-	@OUTPUT="data/attack_boots.csv" TEMP_FILE="data/temp_attack.txt"; \
-	echo "boot_id,cp,elapsed,sub_a,sub_b,sub_c" > "$$OUTPUT"; \
-	for i in $$(seq 1 50); do \
-		$(QEMU) $(QEMU_FLAGS) -kernel app_attack.elf > "$$TEMP_FILE" & \
-		QEMU_PID=$$!; \
-		sleep 0.8; \
-		kill $$QEMU_PID 2>/dev/null; \
-		wait $$QEMU_PID 2>/dev/null; \
-		awk '/DATA_START/{f=1;next} /DATA_END/{f=0} f && /^[0-9]/' "$$TEMP_FILE" \
-			| awk -F',' -v id=$$i '{print id","$$0}' >> "$$OUTPUT"; \
-		printf "\rCollected attacked boot %d/50" $$i; \
-	done; \
-	rm -f "$$TEMP_FILE"; \
-	echo "\nSaved to $$OUTPUT"
 
 # Prevent Make from confusing these targets with actual files
 .PHONY: all run clean

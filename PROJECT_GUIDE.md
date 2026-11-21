@@ -25,12 +25,12 @@ Stages (the work is busy loops on `volatile` variables, not real cryptography):
 |---|---|---|
 | 0 | boot start (includes UART init) | none (sub values are 0) |
 | 1 | hardware init | 200 / 200 / 200 |
-| 2 | boot mode detect | 200 / 200 / 200 |
+| 2 | boot mode detect | 150 / 150 / 150 |
 | 3 | signature verify (primary attack target) | 500 / 300 / 200 |
-| 4 | decrypt stage | 200 / 200 / 200 |
-| 5 | integrity check | 200 / 200 / 200 |
-| 6 | memory setup | 200 / 200 / 200 |
-| 7 | handoff | 200 / 200 / 200 |
+| 4 | decrypt stage | 250 / 250 / 250 |
+| 5 | integrity check | 300 / 300 / 300 |
+| 6 | memory setup | 180 / 180 / 180 |
+| 7 | handoff | 120 / 120 / 120 |
 
 Each checkpoint prints `cp, elapsed, sub_a, sub_b, sub_c` between `DATA_START` and `DATA_END`. Timing is the SysTick 24-bit down-counter. In QEMU it follows host time, not executed instructions, so partial skips are invisible (ISSUE-012).
 
@@ -64,7 +64,7 @@ Scripts:
 
 | Script | Purpose |
 |---|---|
-| `collect_fault_types.sh` | Batch QEMU collection (N boots → CSV) |
+| `collect_fault_types.sh` | `N_BOOTS PREFIX`: rebuilds all 7 ELFs, runs N boots of each, writes `data/<PREFIX>_<variant>.csv` |
 | `calibrate_floor.py` | Fit floor table, write `src/floor_table.h` |
 | `calibrate_firmware.py` | Fit Mahalanobis model for CP3, print C constants |
 | `validate_firmware.py` | Test detectors on validation data (held-out, 4 splits) |
@@ -86,7 +86,7 @@ make clean && make
 make run </dev/null
 
 # Collect calibration data
-bash scripts/collect_fault_types.sh data/cal_clean app_collect.elf 300
+bash scripts/collect_fault_types.sh 300 cal   # all 7 variants, writes data/cal_*.csv
 
 # Calibrate detectors
 source .venv/bin/activate
@@ -94,10 +94,8 @@ python scripts/calibrate_floor.py data/cal_clean.csv 0.45
 python scripts/calibrate_firmware.py data/cal_clean.csv 3 data/ds1_attack.csv
 # (Update src/floor_table.h and src/cusum_detector.c constants, then rebuild)
 
-# Collect validation data (7 variants × 300 boots)
-bash scripts/collect_fault_types.sh data/val_clean app_collect.elf 300
-bash scripts/collect_fault_types.sh data/val_attack app_attack.elf 300
-# ... (ft1 through ft5)
+# Collect validation data (7 variants x 300 boots)
+bash scripts/collect_fault_types.sh 300 val
 
 # Validate
 python scripts/validate_firmware.py
