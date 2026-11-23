@@ -1,423 +1,344 @@
-# Story Deck Guide: PMU-Based Fault Detection Review
+# Story Deck Guide: 25 Slides, One Figure Each
 
-**Target:** 20 to 25 minutes | **Audience:** Technical review panel | **Status:** Phase 1 complete, pending approval
+**Talk length:** about 20 minutes of speaking (table below), leaving up to 5 minutes of buffer inside the 20 to 25 minute limit.
+**Audience:** IIT Madras Phase 1 review panel. **Presenter:** Ayush Ranjan (EE24M504).
 
-This guide walks through your presentation slide-by-slide, with visualizations that show exactly how the detector works and what happened at each stage.
+Every number here was taken from [STATUS.md](../STATUS.md), [FAULT_MODELS.md](../FAULT_MODELS.md), [LITERATURE_SLIDES.md](LITERATURE_SLIDES.md), the four stage notes in this folder, or `results/`. If a number here ever differs from STATUS.md, STATUS.md wins.
 
----
-
-## Overview
-
-The deck tells the story of Phase 1 as a journey through four stages, where each stage solved one problem and exposed the next. The flow:
-
-1. **Part A: Setup** (slides 1–6): problem, literature, the idea, testbed, and roadmap
-2. **Part B: The Four Stages** (slides 7–22): each stage gets 3 to 4 slides showing the code, the method, results, and what failed
-3. **Part C: Phase 2 and Summary** (slides 23–25): what the limits mean, the Phase 2 plan, and the lesson learned
-
-**Timing:** About 22 minutes (1 min title, 4 min setup, 14 min stages, 3 min Phase 2). Leave 3 minutes for buffer and questions.
+The pictures are in [figures/](figures/). Re-create them with `python3 review/figures/make_story_figures.py` (run from `pmu_bootrom/`). Insert each PNG full-width; the figure already carries its own title.
 
 ---
 
-## Deck At A Glance
+## The story in one minute
 
-**Main slides (25 total):**
+1. **Problem.** An attacker glitches the boot ROM so the signature check is skipped.
+2. **Idea.** A skipped loop makes a boot stage finish early. Learn how long clean boots take, and alarm when a stage is wrong.
+3. **Stage 1.** In Python, on fake faults, it works.
+4. **Stage 2.** We moved it into C firmware. It caught all 1000 attack boots and falsely alarmed on 14 of 1000 clean ones.
+5. **Stage 3.** We widened the test to 8 checkpoints and 6 faults. The detector almost stopped working: harmless slow spikes looked more alarming than the real faults.
+6. **Stage 4.** Our faults only make stages shorter, so we test only for "too short". That gave 0 false alarms and 298 to 300 detections out of 300 on the five skipped-loop faults.
+7. **Phase 2.** Real hardware, real fault injection, and the things Phase 1 could not test.
 
-### Part A: Introduction and Setup (6 slides, ~4 min)
-- **Slide 1:** Title
-- **Slide 2:** Problem statement and boot chain
-- **Slide 3:** Literature survey – what others built
-- **Slide 4:** The idea: timeline with PMU checkpoints
-- **Slide 5:** Testbed: QEMU, ARM Cortex-M33, SysTick
-- **Slide 6:** Roadmap: four stages, each fixes the last
+Say this shape out loud on slide 6 so the panel knows where you are going.
 
-### Part B: The Four Stages (16 slides, ~14 min)
+## Deck at a glance
 
-**Stage 1: Python Simulation** (4 slides, ~3.5 min)
-- **Slide 7:** main.c flow with fault injection point
-- **Slide 8:** Why Mahalanobis (MD captures the pattern)
-- **Slide 9:** CUSUM accumulates evidence
-- **Slide 10:** Results and limits (in-sample, Python-only)
+| Part | Slides | Time |
+|---|---|---:|
+| A. Introduction: title, problem, literature, idea, testbed, roadmap | 1 to 6 | 4 min 15 s |
+| Stage 1: Python simulation | 7 to 10 | 3 min 20 s |
+| Stage 2: firmware port | 11 to 14 | 3 min 15 s |
+| Stage 3: broaden, then failure | 15 to 18 | 3 min 15 s |
+| Stage 4: floor rule | 19 to 22 | 3 min 40 s |
+| C. Towards Phase 2: limits, plan, summary | 23 to 25 | 2 min 30 s |
+| | **25 slides** | **20 min 15 s** |
 
-**Stage 2: C Port and Fixed-Point** (4 slides, ~3.5 min)
-- **Slide 11:** Detector in firmware, checkpoint 2
-- **Slide 12:** Q16.16 fixed-point arithmetic
-- **Slide 13:** Two silent bugs and their fixes
-- **Slide 14:** Results and slow-boot false alarms
+Each stage follows the same four beats: the **question** it asked, **what we built**, the **result**, and the **problem that pushed us to the next stage**.
 
-**Stage 3: Eight Checkpoints** (4 slides, ~3.5 min)
-- **Slide 15:** 8-checkpoint flow with six fault variants
-- **Slide 16:** Why it collapsed (spread, two-sided distance)
-- **Slide 17:** What failed (7 of 300 clean boots above attack median)
-- **Slide 18:** Spikes accumulate across checkpoints; trimming helps detection but not false alarms
-
-**Stage 4: Floor Rule** (4 slides, ~3.5 min)
-- **Slide 19:** Direction matters: faults go down, spikes go up
-- **Slide 20:** The floor table (21 numbers, 140 bytes)
-- **Slide 21:** Tiered response: floor halts, Mahalanobis warns
-- **Slide 22:** Results: 0% clean false alarms for floor, near-perfect detection
-
-### Part C: Phase 2 and Wrap-Up (3 slides, ~3 min)
-- **Slide 23:** Seven Phase 1 limits become Phase 2 questions
-- **Slide 24:** Phase 2 plan: STM32L552, DWT counters, real glitches
-- **Slide 25:** Summary: four-stage journey, one lesson
-
-**Backup slides (3 total):**
-- **B1:** Stage 2 slow-boot heatmap (false-alarm detail)
-- **B2:** Choosing F (0.30–0.50 window, synthetic severity sweep)
-- Other backups from earlier materials as needed
-
----
-
-## Part A: Introduction and Setup
-
-### Slide 1: Title
-**Figure:** *(no figure, title slide)*
-
-**Content:**
-- Title: "PMU-Based Statistical Detection of Fault Injection Attacks in Secure Boot"
-- Your name, ID, institution, date
-- Mentor acknowledgment
-
-**What to say:** (30 sec) Introduce the project. "This is Phase 1 of a two-phase project. Today I'll walk through how we built and refined a fault detector, stage by stage, and what we learned about what works and what doesn't in emulation."
+| Slide | Figure file |
+|---|---|
+| 1 | none (title) |
+| 2 | slide02_problem_boot_chain.png |
+| 3 | slide03_literature_defences.png |
+| 4 | slide04_idea_timeline.png |
+| 5 | slide05_testbed.png |
+| 6 | slide06_roadmap.png |
+| 7 | slide07_stage1_main_flow.png |
+| 8 | slide08_stage1_why_mahalanobis.png |
+| 9 | slide09_stage1_cusum.png |
+| 10 | slide10_stage1_results.png |
+| 11 | slide11_stage2_main_flow.png |
+| 12 | slide12_stage2_fixed_point.png |
+| 13 | slide13_stage2_bugs.png |
+| 14 | slide14_stage2_results.png |
+| 15 | slide15_stage3_flow_faults.png |
+| 16 | slide16_stage3_collapse.png |
+| 17 | slide17_stage3_why_failed.png |
+| 18 | slide18_stage3_spikes_accumulate.png |
+| 19 | slide19_stage4_direction.png |
+| 20 | slide20_stage4_floor_table.png |
+| 21 | slide21_stage4_tiered_flow.png |
+| 22 | slide22_stage4_results.png |
+| 23 | slide23_phase2_questions.png |
+| 24 | slide24_phase2_plan.png |
+| 25 | slide25_summary.png |
+| Backup | backupB1_stage2_slow_boots.png, backupB2_stage4_choosing_f.png, backupB8_literature_references.png |
 
 ---
 
-### Slide 2: The Problem and Boot Chain
-**Figure:** `slide02_problem_boot_chain.png`
+# PART A: INTRODUCTION (4 min 15 s)
 
-The figure shows a secure boot chain (boot ROM → signature check → app firmware → execution) with a voltage glitch hitting the signature check, and the consequence: unsigned code runs.
+## Slide 1: Title (30 s)
 
-**What to say:** (40 sec) "Boot ROM firmware verifies the next stage before jumping to it. An attacker with physical access can inject a voltage or clock glitch during that verification loop, skip the check, and run their own unsigned code. The attack takes microseconds. Our goal: detect it before the boot completes."
+No figure. Title, your name and roll number, IIT Madras, mentor's name, date.
 
----
+**Say:** "This is the Phase 1 review of PMU-based statistical detection of fault injection in secure boot. I will tell it as a story: four stages, where each stage ended with something that did not work, and that is what started the next one."
 
-### Slide 3: Literature Survey
-**Figure:** `slide03_literature_defences.png`
+## Slide 2: The problem (45 s)
 
-Four cards showing prior defences: redundant execution, control-flow integrity (CFI), FAME (DWT counter anomaly checks), and CompaSeC (compiler-based fault detection).
+**Figure:** slide02_problem_boot_chain.png. A five-box boot chain; the signature check is highlighted, a glitch hits it, and the two outcomes are shown: bad signature stops the boot, glitched check skipped lets unsigned code run.
 
-**What to say:** (50 sec) "Others have built defences. Redundant execution repeats critical sections twice — expensive. CFI checks that jumps land where they should. FAME uses ARM's DWT counters to catch timing anomalies. CompaSeC embeds checks at compile time. Each has trade-offs: overhead, coverage, or complexity. We wanted something lightweight that could run in a boot ROM with limited code space."
+**Say:** "A boot ROM checks the signature of the next stage before running it. An attacker with physical access can glitch the voltage or clock at exactly that moment and skip the check. Then unsigned code runs with full trust at the root of trust. Our Phase 1 stub has one such check and no redundancy, which the literature calls anti-pattern A7."
 
-**Honesty note:** The numbers on these cards (e.g., overhead %) come from the review notes and should be spot-checked against the original papers if you're asked.
+**Watch out:** For real-world evidence you can add one spoken line from [LITERATURE_SLIDES.md](LITERATURE_SLIDES.md), slide L1 (PlayStation Vita boot ROM, Nvidia Tegra X2 in cars). Spot-check those against the papers first; the author notes there say the numbers were not checked against the PDFs.
 
----
+## Slide 3: What the literature does (55 s)
 
-### Slide 4: The Idea
-**Figure:** `slide04_idea_timeline.png`
+**Figure:** slide03_literature_defences.png. Five cards: two hardware sensors (He et al. 92.82%; Muttaki et al. 0.4% of LUTs), software redundancy (Geier et al., CompaSeC, 0.21 to 484% overhead), an algorithm-level check (Lee et al. 92.56%), and "this project: firmware only".
 
-A timeline of boot stages with PMU checkpoints, showing how timing deviations at one checkpoint reveal a glitch.
+**Say:** "Hardware sensors detect well but need silicon area and per-platform calibration. Software redundancy prevents rather than detects, and can cost a lot. Algorithm-level checks work one function at a time. Our idea is firmware only: a statistical timing detector inside the boot ROM. The numbers on these cards come from different platforms and fault models, so they are not comparable with each other or with ours. Within the 20 papers we surveyed, we found none that uses statistical detection on on-chip timing inside a boot ROM. That claim holds only within those 20 papers; a systematic prior-art search is still to be done."
 
-**What to say:** (40 sec) "The core idea: boot firmware is deterministic. Each stage runs in nearly the same number of cycles every time. We insert checkpoints that snapshot the cycle counter after each stage. A skipped loop shortens one stage. We compare the timing to a statistical model of clean boots and raise an alarm if it doesn't fit."
+**Watch out:** Do not put our detection rates next to these numbers. See also the Q&A on novelty.
 
----
+## Slide 4: The idea (40 s)
 
-### Slide 5: Testbed
-**Figure:** `slide05_testbed.png`
+**Figure:** slide04_idea_timeline.png. Two timelines of the signature-verify stage cut into three timed blocks: a clean boot (742, 828, 572 cycles) and a skipped-loop boot where `sub_b` is 92. The gap is 736 cycles.
 
-Diagram of QEMU 8.2.2, ARM Cortex-M33, mps2-an505, SysTick timer as the cycle counter.
+**Say:** "A boot stage runs the same code every time, so it takes about the same number of cycles. We read a timer at four points to get three block times, sub_a, sub_b and sub_c. If a glitch skips a loop, one block becomes much shorter. We learn how long each block normally takes, and raise an alarm when a block is wrong."
 
-**What to say:** (40 sec) "Phase 1 runs in QEMU emulation on an ARM Cortex-M33. The SysTick timer counts cycles. We compile with `-DGLITCH_ATTACK` to simulate a fault: the code breaks out of a verification loop early. Real hardware and real glitches come in Phase 2. This emulation let us iterate fast and validate the algorithm before porting to silicon."
+## Slide 5: The testbed (40 s)
 
-**Honesty note:** SysTick follows host time, so partial skips are invisible (ISSUE-012). The fault is compile-time, not electrical.
+**Figure:** slide05_testbed.png. A loop: main.c with six fault macros, built with arm-none-eabi-gcc, run in QEMU 8.2.2 (mps2-an505, Cortex-M33, SysTick), UART text, shell script, CSV files, Python scripts, and tables fed back into C.
 
----
+**Say:** "Everything runs in QEMU on a Cortex-M33 model. Each boot prints its timings on the serial port, a script collects them into CSV files, Python learns the numbers, and those numbers go back into the C code. Two limits to keep in mind: the faults are compile-time macros, not electrical glitches, and QEMU's timer follows host time, so partial skips are invisible (ISSUE-012)."
 
-### Slide 6: Roadmap
-**Figure:** `slide06_roadmap.png`
+## Slide 6: Roadmap (45 s)
 
-Four cards showing Stage 1 (Python simulation), Stage 2 (C port, fixed-point), Stage 3 (8 checkpoints), Stage 4 (floor rule). Each card previews what it built and what it exposed.
+**Figure:** slide06_roadmap.png. Four cards with the question each stage asked, and under each the problem it left behind.
 
-**What to say:** (50 sec) "Phase 1 had four stages. Stage 1 built the statistical model in Python and validated CUSUM detection. It worked, but the attacks were fake — Python-subtracted timing, not real firmware faults. Stage 2 ported the detector to C with fixed-point arithmetic. It ran in firmware, but slow boots caused false alarms. Stage 3 added more checkpoints and more fault variants, but false alarms multiplied. Stage 4 switched to a one-sided floor rule that ignores timing spikes. Let me walk through each."
+**Say:** "Stage 1: can timing alone reveal a skipped loop? Yes, but the faults were Python subtraction. Stage 2: can it run in firmware with no floating point? Yes, but there was one fault at one checkpoint, and the false alarms came from timing spikes. Stage 3: does it hold with 8 checkpoints and 6 faults? No: a two-sided score cannot tell slow spikes from fast faults. Stage 4: is any stage suspiciously short? That works, and what is still open is Phase 2."
 
 ---
 
-## Part B: The Four Stages
+# STAGE 1: PYTHON SIMULATION (3 min 20 s)
 
-### Stage 1: Python Simulation
+## Slide 7: Where the fault goes in main.c (45 s)
 
-#### Slide 7: main.c Flow and Fault Injection
-**Figure:** `slide07_stage1_main_flow.png`
+**Figure:** slide07_stage1_main_flow.png. A vertical flow of the original 4-checkpoint main(); signature verify is highlighted. A detail panel shows its three loops (500, 300, 200 iterations) between four timer reads, with the fault on the `sub_b` loop under `-DGLITCH_ATTACK`.
 
-Flowchart of the original 4-checkpoint main.c, with boxes for each boot stage (ROM verify, memory init, signature verify, key derivation) and pmu_checkpoint calls. The fault injection point is highlighted in the signature verification loop's sub_b section.
+**Say:** "This is the original firmware. After the timer and serial port start, checkpoint 0 marks the time origin, then three stages run and each is followed by a checkpoint, four checkpoints in all. Signature verification is the primary target. Inside it are three loops, each timed, and the fault shortens or skips the key-load loop, sub_b. Notice the last line: there is no detector in this firmware yet. In Stage 1 the Python scripts read the CSV afterwards, and the cut was applied to the recorded numbers in Python (ISSUE-007)."
 
-**What to say:** (40 sec) "This was the original boot stub. Four checkpoints, each capturing three sub-stage timings. Checkpoint 2 is signature verification: 500 iterations in sub_a, 300 in sub_b, 200 in sub_c. The simulated fault breaks the sub_b loop early, at iteration 100. That cuts sub_b's time by about two-thirds. The question: can we detect that cut statistically?"
+## Slide 8: Why Mahalanobis distance (50 s)
 
----
+**Figure:** slide08_stage1_why_mahalanobis.png. Scatter of 496 clean boots (sub_a against sub_b); a clean boot and the same boot with `sub_b` cut by 20%; a table of what a plain threshold and Mahalanobis distance (MD) each see.
 
-#### Slide 8: Why Mahalanobis
-**Figure:** `slide08_stage1_why_mahalanobis.png`
+**Say:** "We recorded 496 clean boots at the signature stage. The three timings rise and fall together, with correlation about 0.9, because when the host is slow all three get slower. Cut sub_b by 20% and it is only 0.3 standard deviations below its mean, so a plain threshold sees nothing. But sub_a and sub_c are above average, so sub_b should be too. A low sub_b beside two high ones breaks the pattern, and the distance rises from 1.79 to 4.47."
 
-Scatter plot and worked example showing that a 20% cut to sub_b shifts MD from 1.79 to 4.47, even though sub_b alone is only 0.3 standard deviations below the mean.
+## Slide 9: CUSUM, the running total (50 s)
 
-**What to say:** (50 sec) "We collect 496 clean boots at checkpoint 2. Each boot has three numbers: cycles in sub_a, sub_b, sub_c. They're correlated about 0.9: when the emulator slows down, all three go up together. A simple threshold on sub_b misses small cuts. Mahalanobis distance accounts for the correlation. Here, cutting sub_b by 20% makes it only slightly below average, but sub_a and sub_c are both high. That breaks the pattern. MD jumps from 1.79 to 4.47. That's the signal."
+**Figure:** slide09_stage1_cusum.png. Left: one simulated stream of 10 clean then 10 cut boots, with MD, the running total S, threshold H and slack k. Right: histogram showing how H was chosen.
 
----
+**Say:** "One odd boot is not proof, so we keep a running total: S becomes the larger of zero and S plus MD minus k. Below k the total drifts back to zero; above k boot after boot it climbs. Here k is 1.685. H is 10.14, the 99th percentile of the highest total seen in 10,000 simulated clean 20-boot sequences. In this stream the first cut boot is boot 10, and the alarm fires at boot 12, the third faulted boot."
 
-#### Slide 9: CUSUM Accumulation
-**Figure:** `slide09_stage1_cusum.png`
+## Slide 10: Stage 1 result and why it was not enough (55 s)
 
-A trace of one simulated run: MD and CUSUM statistic S over 20 boots (10 clean, 10 faulted). S rises during the glitched boots and crosses threshold H at boot 12.
+**Figure:** slide10_stage1_results.png. Left: detection by cut size. Right: detection by the number of faulted boots in a row. Bottom: four boxes on why this was not enough.
 
-**What to say:** (50 sec) "One odd boot isn't proof. CUSUM accumulates evidence. S = max(0, S + MD - k). When MD is below k, S decays toward zero. When MD is above k repeatedly, S climbs. If S crosses H, we alarm. Here k = 1.685 (70th percentile of clean MD) and H = 10.14 (99th percentile of the max S over 10,000 simulated 20-boot sequences). The first glitched boot is boot 10. By boot 12 the cumulative score crosses H and the detector alarms."
+**Say:** "With 10 faulted boots in a row, detection is 4.5% at a 5% cut, 86.2% at 10%, 99.7% at 20%, and 99.6% at 30 and 50%. False alarms are 0.1 to 0.5%. ROC AUC at 20% is 0.9933. But four problems. The faults were Python subtraction, not real. The test is in-sample: streams came from the same 496 boots that fitted the model. It needs repeated faults: one faulted boot at a 20% cut is detected only 2.3% of the time, three boots 83%, ten boots 100%. And it exists only in Python; a defence must run inside the boot ROM and stop the boot (ISSUE-008). So Stage 2 ported it to C."
 
----
-
-#### Slide 10: Stage 1 Results
-**Figure:** `slide10_stage1_results.png`
-
-Bar chart: detection rate vs severity (5/10/20/30/50% cuts), false-alarm rates, ROC AUC 0.9933. Side panel lists four limits: synthetic faults, in-sample, 10-boot window, Python-only.
-
-**What to say:** (60 sec) "Results: at 10% cut, detection is 86%. At 20%, 99.7%. False alarms 0.1 to 0.5%. ROC AUC 0.9933. It works. But four problems. One: the faults were fake — Python subtracted cycles after the firmware recorded them. Nothing in the firmware changed. Two: it's in-sample. The attack data comes from the same 496 boots that fitted the model. Three: the test assumes 10 faulted boots in a row. A real boot decides once. With one glitched boot at 20%, detection is only 2.3%. Four: it's Python-only. A boot-time defence has to run inside the ROM. So Stage 2 ported it to C."
-
-**Honesty note:** Link to [STATUS.md Section 2.1](../STATUS.md) for these numbers. The firmware glitch code from Stage 2 onward is real (compiled in), not Python-subtracted.
+**Honesty note:** The first data collection (7 Nov) had about 500 usable boots; the model on the slides is from the re-collection (496 boots), which is what STATUS.md reports.
 
 ---
 
-### Stage 2: C Port and Fixed-Point Arithmetic
+# STAGE 2: THE FIRMWARE PORT (3 min 15 s)
 
-#### Slide 11: Detector in Firmware
-**Figure:** `slide11_stage2_main_flow.png`
+## Slide 11: The detector inside main() (40 s)
 
-Flowchart showing the firmware check_checkpoint flow after checkpoint 2: timer_ok guard, then cusum_update with the Mahalanobis distance and CUSUM logic, then alarm or continue.
+**Figure:** slide11_stage2_main_flow.png. The frozen 4-checkpoint firmware: after `pmu_checkpoint(2)`, build the three features, call `cusum_update`, test S > H. Yes leads to "ATTACK DETECTED at CP2" and the boot halts; no leads to the next stage. A side panel lists where the code lives.
 
-**What to say:** (40 sec) "Stage 2 moved the detector into the firmware. After checkpoint 2, main.c calls check_checkpoint, which computes Mahalanobis distance in Q16.16 fixed-point, updates the CUSUM statistic, and halts if it crosses the threshold. The model parameters — mu, covariance inverse, k, H — are compiled into the binary. This is the one-shot version: k = 0, H = 1.25 times the largest clean MD, so a single glitched boot that crosses H is caught immediately."
+**Say:** "In Stage 2 the detector became C code that runs during boot, right after checkpoint 2. If the alarm fires, the firmware prints the features and halts. The numbers come from a Python script that calibrates on clean boots and prints C code. Because firmware sees one boot at a time, the threshold became a one-shot rule: k is 0 and H is 1.25 times the largest clean distance, which is 10.84. This is the frozen firmware, tagged phase1-review-freeze-2."
 
----
+## Slide 12: No floating point (45 s)
 
-#### Slide 12: Fixed-Point Arithmetic
-**Figure:** `slide12_stage2_fixed_point.png`
+**Figure:** slide12_stage2_fixed_point.png. A 32-bit register split 16 and 16 bits (Q16.16), and a five-step pipeline for one attack boot (difference, multiply, dot product, square root, compare): 22.3 against H = 10.84.
 
-Diagram of Q16.16 format, the bit-by-bit square root, and the Mahalanobis formula steps (delta, matrix multiply, dot product, sqrt).
+**Say:** "A boot ROM has no floating-point unit and no maths library. So every number is stored as a whole number counting in 1/65536ths. 1.5 is stored as 98,304, and the range is about plus or minus 32,768. The five steps are subtract the average, multiply by the inverse covariance, take the dot product, take the square root, and compare. The square root is built one bit at a time with only compare, subtract and shift, because the chip has no 64-bit division. For this attack boot the firmware gets a distance of 22.29 against a threshold of 10.84."
 
-**What to say:** (50 sec) "The Cortex-M33 has no FPU. We use Q16.16 fixed-point: 16 integer bits, 16 fractional. Square root is bit-by-bit, no division, so we keep the fractional part. The Mahalanobis computation: (1) delta = obs - mu, (2) y = covariance inverse times delta, (3) q = dot product, (4) distance = sqrt(q). All done in 64-bit intermediate arithmetic to avoid overflow, then clamped to the representable range."
+## Slide 13: Two silent failures and the fixes (60 s)
 
----
+**Figure:** slide13_stage2_bugs.png. Three panels: the square root throwing away decimals; the overflow that failed open (ISSUE-014); the three-layer fix.
 
-#### Slide 13: Two Silent Bugs
-**Figure:** `slide13_stage2_bugs.png`
+**Say:** "Two bugs failed silently. First, the square root. The first version always returned zero, so nothing ever alarmed. The first fix kept only the whole number, and that threw away decimals: with the alarm line at 15.37, true distances of 15.5 and 15.9 both became 15 and were missed. The final version keeps the decimals and is within one step over 2 million test values. Second, overflow. We found it by reading the code. Above a squared distance of 32,768 the value wrapped and was set to zero. Re-running the old code showed 3,000 cycles alarmed and 16 million alarmed, but 40,000 and a wrapped timer of 4,294,967,295 did not. That is the dangerous kind of bug, because it looks fine in casual testing. The fix has three layers: cap every input at 32,767, saturate the distance at 181.02, and alarm outright if any sub-stage is over 4,096 cycles."
 
-Three panels: the sqrt bug (returned 0), the decimal-truncation bug (MD 15.5 became 15, threshold 15.37), and the fixes (clamp inputs, saturate distance, ceiling 4096 cycles).
+## Slide 14: Stage 2 result (50 s)
 
-**What to say:** (60 sec) "Two bugs failed silently. First, the square root returned zero for every input — wrong bit shift. That made every MD zero, so nothing ever alarmed. Second, after fixing that, I truncated the result to an integer. MD 15.5 to 16.0 became 15, and the threshold was 15.37, so the attack slipped under. The fix: keep the fractional part. A third issue: huge timing values wrapped the distance back to small numbers, failing open. The fix: clamp inputs at 32,767 cycles, saturate distance at the max representable value, and alarm immediately if any sub-stage exceeds 4096 cycles. The lesson: silent bugs are worse than crashes."
+**Figure:** slide14_stage2_results.png. Distances on a log scale for 50 attack boots, 496 clean boots, and the 14 clean boots that false-alarmed. Right: key numbers.
 
----
+**Say:** "On 1000 attack boots, all 1000 were detected. On 1000 clean boots, 14 false-alarmed, which is 1.4%. The largest clean distance in training was 8.7 and attack distances were 19.1 to 31.9, so detection was easy. The detector is 1,060 bytes and the whole firmware is 3,152 bytes. Now look at the 14 false alarms: every one we examined was a slow boot, one or two sub-stages far too slow. The likely cause is the host pausing QEMU; that is not confirmed. The training set held no such boots, 0 in 496. This was the warning sign, and Stage 3 tested the detector on a messier world."
 
-#### Slide 14: Stage 2 Results
-**Figure:** `slide14_stage2_results.png`
-
-Table: 1000/1000 attacks detected, 14/1000 clean false alarms (1.4%). Side note: all false alarms were slow boots (MD 11.8 to 120.7, up to 6.2x the median in one sub-stage).
-
-**What to say:** (50 sec) "With the fixes, Stage 2 caught all 1000 attack boots. But 14 of 1000 clean boots alarmed. That's 1.4%, not the targeted 1%. All 14 were slow boots: one sub-stage up to 6.2 times the median, MD 11.8 to 120.7. These spikes don't exist in the training set of 496 boots, so the model doesn't expect them. We think it's the host pausing QEMU, not proven. The detector's size: 1,060 bytes. Total firmware 3,152 bytes. Stage 2 worked, but only for one checkpoint. Stage 3 scaled to eight."
-
-**Backup:** Slide B1 shows a heatmap of the 14 slow boots, with their MD and the highest sub-stage value per boot.
+**Backup:** B1 shows the 14 boots as a heat map: every slow sub-stage is 1.5 to 6.2 times its normal time and no cell is below 0.91.
 
 ---
 
-### Stage 3: Eight Checkpoints and Six Fault Variants
+# STAGE 3: BROADEN THE TEST (3 min 15 s)
 
-#### Slide 15: Eight Checkpoints and Six Faults
-**Figure:** `slide15_stage3_flow_faults.png`
+## Slide 15: Eight checkpoints, six faults (45 s)
 
-Flowchart of main.c with 8 checkpoints (CP0 to CP7, monitoring CP1 to CP7), and six fault macros shown at their injection points: GLITCH_ATTACK (CP3 sub_b), FT-1 (CP1 sub_b), FT-2 (CP3 sub_c), FT-3 (CP7 sub_a), FT-4 (CP3 sub_a + sub_b), FT-5 (CP3 sub_c +84%).
+**Figure:** slide15_stage3_flow_faults.png. Seven stages (CP1 to CP7), three timed blocks each with their loop counts. Blocks changed by a fault macro are orange and labelled.
 
-**What to say:** (50 sec) "Stage 3 grew to 8 checkpoints. Checkpoint 0 is boot entry; we monitor CP1 through CP7. Six fault builds: the original attack at CP3 sub_b, four variants cutting different sub-stages at different checkpoints, and FT-5 — the outlier — which adds 50 extra iterations to CP3 sub_c instead of removing them. Each build: 300 boots, clean or glitched. We fit a Gaussian model per checkpoint and applied the Stage 2 rule: k = 0, H = 1.25 times max clean MD."
+**Say:** "To look more like a real boot we grew to eight checkpoints, seven of them monitored. We built six fault builds. The original attack skips the CP3 sub_b loop. FT-1 skips CP1 sub_b, FT-2 skips CP3 sub_c, FT-3 skips CP7 sub_a, and FT-4 skips CP3 sub_a and sub_b. FT-5 is different: it adds an extra loop at CP3 sub_c, so that stage gets about 84% longer. We collected 300 boots of every build, and the script records the QEMU version, git commit and a hash of each build."
 
----
+**Honesty note:** The first Stage 3 dataset was invalid and we withdrew it (stale builds, a clean set that came from the halting build, and FT-5 timestamps taken after the extra loop). The data on these slides is the corrected set.
 
-#### Slide 16: Why It Collapsed
-**Figure:** `slide16_stage3_collapse.png`
+## Slide 16: The same rule, almost no detections (55 s)
 
-Detection rates: 1/300 attack, 0/300 FT-1, 0/300 FT-2, 3/300 FT-3, 0/300 FT-4, 0/300 FT-5. Panel showing the problem: attack median MD = 3.1, but 7 of 300 clean boots have MD above that. Reasons: two-sided distance, max-based threshold.
+**Figure:** slide16_stage3_collapse.png. Horizontal bars: Stage 2 result for reference (1000/1000), then attack 1/300, FT-1 0/300, FT-2 0/300, FT-3 3/300, FT-4 0/300, FT-5 0/300. A text box gives the fault sizes, the faulted boots' median distance (2.5 to 7.1) and the thresholds (17.6 to 20.9).
 
-**What to say:** (60 sec) "It collapsed. Detection: 1 out of 300 for the main attack. Zero for FT-1, FT-2, FT-4, FT-5. Three for FT-3. Why? At CP3, the attack's median MD is 3.1. But 7 of 300 clean boots have MD above 3.1. The threshold H is 20.9, set from the max clean MD times 1.25. The attack doesn't cross it. Two reasons. One: Mahalanobis is two-sided. A spike (high timing) and a cut (low timing) both increase MD, so spikes inflate the clean distribution. Two: the threshold comes from the maximum clean MD. One spiked boot in 300 sets a high bar. The attack is weaker than that spike."
+**Say:** "We applied the Stage 2 rule unchanged: one Gaussian per checkpoint, threshold at 1.25 times the largest clean distance. It flagged 1 of 300 attack boots and 0 to 3 of 300 on every other fault. The faults are as large as before: each skipped loop removes 78 to 89% of that sub-stage's time, and FT-5 adds 84%. But a faulted boot's median distance is only 2.5 to 7.1, against thresholds of 17.6 to 20.9. The top bar is a different test, so do not compare it directly."
 
----
+**Checked against `data/ds1_*.csv`:** all six counts (1, 0, 0, 3, 0, 0), the per-build median distances (3.09, 3.73, 3.05, 2.51, 7.11, 2.73) and thresholds (20.9, 20.73, 20.9, 17.56, 20.9, 20.9) reproduce exactly.
 
-#### Slide 17: What Failed
-**Figure:** `slide17_stage3_why_failed.png`
+**Watch out:** This is the plain in-sample fit, using all 300 clean boots of the Stage 3 data, with no outlier filter. The shipped CP3 model is different: `calibrate_firmware.py` first drops outlier boots with a 2.5 x IQR filter (291 of 300 clean boots kept) and ends with H = 7.49, not 20.9. On fresh boots it does catch the attack (300/300, slide 22) but false-alarms on 5.7% of clean boots. The Stage 3 note says that on the calibration data, in-sample, the unfiltered fit caught 10 of 300 attacks and the filtered fit 300 of 300. Say this if asked why the firmware's Mahalanobis catches the attack when this slide says 1 of 300.
 
-Ranking of all 300 clean boots at CP3 by MD, with 7 boots above the attack median line (MD 3.1). Table of those 7 boots, showing which sub-stage spiked and by how much.
+## Slide 17: Why it failed (50 s)
 
-**What to say:** (40 sec) "Here are the 7 clean boots ranked by MD at CP3. Boot 280, MD 16.7, has sub_c = 3,588 cycles — 6.9 times the median. Boot 203, MD 11.5, has sub_b = 3,790. These spikes don't appear in the calibration set of 496 boots, but they appear 14 times in 300 boots when we switch to collect mode. That 2.3% is noisier than the 0% in calibration. Why the difference? Unknown."
+**Figure:** slide17_stage3_why_failed.png. Left: the 300 clean boots at CP3 ranked by distance, with the attack's median distance (3.1), the threshold (20.9) and a note that 7 boots score higher than the attack's median, 6 of them with a spiked sub-stage. Right: sub-stage times as a multiple of normal; Mahalanobis only asks "how far from the middle?".
 
----
+**Say:** "Left: all 300 clean boots at CP3, ranked by distance. Seven of them score higher than the attack's median of 3.1, and six of those seven have a timing spike. Boot 203 is a perfectly good boot with sub_b at 3,790 cycles, 4.6 times normal, and its distance, 11.5, is 3.7 times the attack's. Boot 280, with sub_c at 3,588, 6.3 times normal, scores 16.7, so the threshold, 1.25 times that, sits at 20.9. Right: distance has no direction. It cannot tell too slow from too fast, but our faults only ever make a stage faster. Spikes also stretch the yardstick: sub_b's spread is 286 cycles with them and 113 without."
 
-#### Slide 18: Spikes Accumulate Across Checkpoints
-**Figure:** `slide18_stage3_spikes_accumulate.png`
+**Checked against `data/ds1_clean.csv` and `ds1_attack.csv`:** the 7 boots above the attack median are boots 280, 203, 101, 150, 201, 19 (all spiked) and 93 (MD 3.42, not spiked). Boot 203 is 3.72 times the attack's median distance. Excluding boots whose sub_b is over 1.5 times its median, sub_b's spread is 113.3 against 286.0 with them, which makes the 736-cycle drop 6.5 spreads away instead of 2.6.
 
-Left: cumulative percentage of clean boots with a spike somewhere, as we add checkpoints (CP1 alone: 2.3%, CP1–7: 14%). Right: trimming training boots above 1.5x or 3x median helps detection at CP3 (from 0.8% to 2.3%) but false alarms grow (from 2.3% to 15.7% across CP1–7).
+**Watch out:**
+- Do not say "14% of clean boots have a spike" over this slide. The 14% (42 of 300) counts a spike at any of the seven checkpoints and belongs to slide 18. At CP3 alone, 6 of 300 clean boots (2%) have one.
+- The attack boots' untouched `sub_c` sits about 24% above the clean build's (708 against 572), so part of the attack's distance of 3.1 is a build effect, not the fault (ISSUE-016). The figure notes this.
+- This is an in-sample fit on all 300 clean boots, with no outlier filter.
 
-**What to say:** (50 sec) "The more checkpoints we monitor, the more chances for a spike. At CP1 alone, 2.3% of clean boots have a spike above 1.5x the median. Across CP1 to CP7, 14%. That's a 1 in 7 chance. Trimming spiked boots from training helps detection at CP3 — from 0.8% to 2.3% — but false alarms grow across all checkpoints, from 9% to 15.7%. The fundamental problem: two-sided distance treats up and down the same, but our faults only go one way."
+## Slide 18: More checkpoints, more false alarms (45 s)
 
----
+**Figure:** slide18_stage3_spikes_accumulate.png. Left: the share of clean boots with a spike somewhere as checkpoints are added (1.3% at CP1 to 14% at CP1 to CP7). Right: clean boots falsely alarmed after trimming spiked boots from training.
 
-### Stage 4: Floor Rule (One-Sided Test)
-
-#### Slide 19: Direction Matters
-**Figure:** `slide19_stage4_direction.png`
-
-Scatter plot of CP3 sub_b timing (log scale, normalized by median): clean boots cluster near 1.0x, attack boots cluster at 0.1x, timing spikes spread to 5x. Floor alarm zone highlighted (below 0.45x). Annotations: "skipped loops only go down", "spikes only go up".
-
-**What to say:** (50 sec) "Stage 4 insight: skipped loops only shorten a stage, and spikes only lengthen it. They go opposite directions. Mahalanobis counts both. A floor test only asks: is any sub-stage suspiciously short? Here's CP3 sub_b, normalized by the clean median. Clean boots cluster near 1.0x. Attack boots land at 0.1x. Spikes scatter up to 5x. The floor at 0.45x catches the attacks and ignores the spikes. Exception: FT-5 adds work, making the stage longer. Only Mahalanobis catches that, so we kept both rules."
+**Say:** "Every checkpoint adds its own chance of a spike, so watching all seven means 14% of clean boots have a spike somewhere. We tried to rescue the rule, always held-out, fit on half the clean boots and tested on the other half. Removing spiked boots from training does bring detection back at CP3: 192 to 300 of 300 on the faults we tried, instead of 0 to 3. But false alarms grow: from 0.8% to 2.3% at CP3 and from 9% to 15.7% across CP1 to CP7. Any line low enough to catch the faults also flags the spikes. We needed a test that looks only downward."
 
 ---
 
-#### Slide 20: The Floor Table
-**Figure:** `slide20_stage4_floor_table.png`
+# STAGE 4: THE FLOOR RULE (3 min 40 s)
 
-The 7×3 FLOOR_TABLE from src/floor_table.h, with CP3 highlighted. Right panel: floor_check C code (3 lines), worked example at CP3 (clean median 690.5/668/522, floor 310/300/234), and example boots (clean passes, spiked boot 203 passes, attack boot fails at sub_b = 93 < 300).
+## Slide 19: Skipped loops go down, spikes go up (50 s)
 
-**What to say:** (60 sec) "The floor rule: 21 numbers. For each checkpoint and sub-stage, the floor is 0.45 times the clean median, rounded down. This table comes from 300 calibration boots. The code: 3 lines. Loop over the three sub-stages; if any sub-stage is below its floor, return 1. At CP3, the floors are 310, 300, 234 cycles. A clean boot with sub_b = 860 passes. The spiked boot 203, sub_b = 3790, passes — every value above its floor. The attack boot, sub_b = 93, fails. 93 < 300, so the floor halts the boot. Code size: 92 bytes plus 48-byte table = 140 bytes."
+**Figure:** slide19_stage4_direction.png. CP3 `sub_b` as a multiple of the clean median on a log scale: clean boots near 1x with a few spikes out to about 5x, attack boots near 0.1x. The floor zone below 0.45x is shaded; Mahalanobis is shown as a two-sided test.
 
-**Honesty note:** The footnote explains calibration drift: fresh validation boots had medians 1 to 25% higher, so the floors acted as 0.36 to 0.44 of the fresh median, still within the usable 0.30–0.50 range. This is a dataset artifact, not a flaw in the rule.
+**Say:** "A skipped loop only makes a stage shorter, and a spike only makes it longer. So instead of asking whether a boot is strange, we ask whether any stage is suspiciously short. The floor sits at 0.45 times the clean median. The attack boots sit far inside it, and the spikes sit on the other side, where the floor never looks. There is one exception, FT-5, which adds work. A floor cannot see it, and I will come back to that."
 
----
+## Slide 20: The floor rule (55 s)
 
-#### Slide 21: Tiered Response
-**Figure:** `slide21_stage4_tiered_flow.png`
+**Figure:** slide20_stage4_floor_table.png. The 7 by 3 table of floors with CP3 highlighted; the `floor_check` code; a worked example at CP3; and a footnote on calibration.
 
-Flowchart of check_checkpoint in main.c: timer_ok guard, then floor_check (if alarm, halt), then cusum_update at CP3 only (if alarm, warn only). Two parallel streams for floor halts and Mahalanobis warnings.
+**Say:** "For each of the 21 sub-stages, take the median over 300 clean calibration boots, multiply by 0.45 and round down. The median barely moves with spikes. At boot, if any sub-stage is under its floor, alarm. At CP3 the floors are 310, 300 and 234. A clean boot with sub_b of 860 continues. Boot 203, with sub_b of 3,790, also continues. The attack boot has sub_b of 93, below 300, so the boot halts. The code is 92 bytes plus a 48-byte table, 140 bytes in total, with no multiplies and no square root."
 
-**What to say:** (50 sec) "The final detector uses both rules. After each checkpoint, timer_ok checks the timer is sane. Then floor_check runs for every checkpoint. If the floor alarms, the firmware prints FLOOR_ALARM and halts. If the floor passes, cusum_update runs at checkpoint 3 only. If Mahalanobis alarms, it prints MAHALANOBIS_ALARM but continues — a warning, not a halt. This tiered response gives the floor rule priority: it's faster, smaller, and has zero false alarms. Mahalanobis catches the FT-5 outlier. The timer guard is untested (ISSUE-019): it's meant to fail open if the timer wrapped, but we didn't validate that path."
+**Watch out:** The medians on this slide (690, 668, 522) differ from slides 4 and 17 (742, 828, 572). They come from different collection runs (slides 4 and 17 from the Stage 3 data, slide 20 from the separate calibration set), and the same code runs at different speeds across builds and runs (ISSUE-016). The footnote also says that on the fresh validation boots the medians were 1 to 25% higher, so the same floors acted as 0.36 to 0.44 of the fresh median, still inside the usable window of 0.30 to 0.50.
 
----
+## Slide 21: The tiered response (50 s)
 
-#### Slide 22: Stage 4 Results
-**Figure:** `slide22_stage4_results.png`
+**Figure:** slide21_stage4_tiered_flow.png. `check_checkpoint(cp)` after every checkpoint: timer check, then Mahalanobis at CP3 (warning only), then the floor check (halt).
 
-Table: floor rule caught 299 to 300 of 300 for attack/FT-1/FT-2/FT-3/FT-4 (FT-3 missed one), 0 of 300 for FT-5. Clean false alarms: floor 0/300, Mahalanobis 17/300 (5.7%). Mahalanobis caught attack/FT-2/FT-4/FT-5 perfectly (300/300).
+**Say:** "After every checkpoint the firmware first checks the timer is sane. At CP3 it runs the Mahalanobis rule, but that only prints a warning and the boot continues, because it false-alarms on 5.7% of clean boots and halting on it would stop about 1 good boot in 18. Then the floor check runs at every checkpoint, and it halts the boot, because it had no false alarm on 300 clean boots. The rule of thumb: a halt must be safe. We keep Mahalanobis only because it is the only rule that sees FT-5, the extra-work fault."
 
-**What to say:** (60 sec) "Fresh validation boots, 300 per build. Floor rule: zero false alarms on clean boots. Detection: 299 or 300 out of 300 for every fault except FT-3, which missed one boot, and FT-5, which the floor cannot see because FT-5 makes the stage longer, not shorter. Mahalanobis: 5.7% false alarms (17 of 300 clean boots), but it catches FT-5 perfectly — all 300. Halting-build test: 293 clean boots completed, 0 halted, 7 completed with a warning. Every faulted boot halted except FT-5, which warned. Stage 4 met the goal."
+**Honesty note:** The timer check fails open and has never fired in validation, so its skip path is untested in firmware (ISSUE-019). See backup B4.
 
-**Backup:** Slide B2 shows how F was chosen: the usable range is 0.30 to 0.50; F = 0.45 catches faults starting around 40% severity, and misses less than 2% by F = 0.30. Below F = 0.30, too many faults slip through. Above F = 0.50, healthy checkpoints start alarming.
+## Slide 22: Stage 4 result (65 s)
 
-**Honesty note:** F was chosen after seeing the fault data (not blind); synthetic severity sweeps in QEMU are flat due to ISSUE-012; the Mahalanobis false-alarm gap (1.4% in Stage 2, 5.7% here) is unexplained.
+**Figure:** slide22_stage4_results.png. Left: faults detected out of 300 for the floor (green) and for Mahalanobis at CP3 (violet). Right: false alarms on clean boots. Bottom: the real halting-build test.
 
----
+**Say:** "On 300 fresh boots per build, using the final binary: the floor falsely alarmed on 0 of 300 clean boots, upper bound 1.3%. It detected 299 of 300 on the attack, 299 on FT-1, 300 on FT-2, 298 on FT-3 and 300 on FT-4. On FT-5 it caught 0, as expected. Mahalanobis, which only watches CP3, detected all 300 of 300 on the four faults at that checkpoint (attack, FT-2, FT-4 and FT-5), but false-alarmed on 17 of 300 clean boots, 5.7%. The Python version of the rules agreed with what the firmware printed on all 2,100 boots. We also ran real halting builds: of 300 clean boots, 0 halted, 293 completed and 7 completed after a warning. The attack, FT-1, FT-2 and FT-4 halted 300 of 300, FT-3 299 of 300, and FT-5 was never halted but warned on all 300."
 
-## Part C: Phase 2 and Summary
-
-### Slide 23: Seven Limits Become Seven Questions
-**Figure:** `slide23_phase2_questions.png`
-
-Seven rows: each Phase 1 limit on the left (compile-time faults, QEMU timer hides partial skips, floor needs 60% cut, host spikes broke Mahalanobis, faults only at CP1/3/7, build-to-build variation, per-checkpoint rules only) maps to a Phase 2 question on the right (does a real glitch change timing like a skipped loop? the real severity curve with DWT counters; the mildest fault on hardware; do spikes exist on silicon?; inject at every checkpoint; recalibrate per build; multi-checkpoint fusion). Three rows marked with "(*)" .
-
-**What to say:** (60 sec) "Every Phase 1 limit becomes a Phase 2 question. One: faults were compile-time macros. Does a real voltage glitch change timing like a skipped loop? Two: QEMU's timer hides partial skips. What's the real severity curve with DWT counters on hardware? Three: the floor needs about a 60% cut and can't catch extra work like FT-5. What's the mildest fault we can catch on hardware, and can we test for longer stages? Four: host spikes broke Mahalanobis. Do spikes exist on silicon? If not, does Mahalanobis work there? Five: faults were only at CP1, CP3, CP7. Can we inject at every checkpoint? Six: same code ran 28% differently across builds. Is recalibrating per build enough? Seven: per-checkpoint rules only. Can we fuse checkpoints without multiplying false alarms? The asterisks mark questions that follow from the Phase 1 results but aren't yet written in STATUS.md Section 7. I'll confirm those with my mentor."
-
-**Honesty note:** The three "(*)" rows are proposed additions, not yet in STATUS.md Phase 2 plan.
+**Honesty notes:**
+- We chose F = 0.45 after seeing the fault data. The fresh boots check the calibration, not the choice of rule.
+- The floor needs roughly a 60% cut to be reliable (synthetic sweep: 0%, 26%, 33% and 96% at 30, 40, 50 and 60%). QEMU cannot make partial skips, so that curve is simulated.
+- Faults were injected only at CP1, CP3 and CP7.
+- The Mahalanobis false-alarm rate was 7 of 300 (2.3%) in the halting run and 17 of 300 (5.7%) in the collect-mode run. Both are single runs and we do not explain the gap.
 
 ---
 
-### Slide 24: Phase 2 Plan
-**Figure:** `slide24_phase2_plan.png`
+# PART C: TOWARDS PHASE 2 (2 min 30 s)
 
-Table comparing Phase 1 (QEMU, SysTick, compile-time faults, one rule per checkpoint, infinite-loop alarm, 7 builds × 300 boots, no comparison) to Phase 2 (STM32L552, DWT counters, debugger-based injection or voltage glitching, multi-checkpoint fusion, TrustZone-M lockout, larger datasets, comparison against redundant execution).
+## Slide 23: Every limit becomes a question (60 s)
 
-**What to say:** (50 sec) "Phase 2 replaces every stand-in. Platform: STM32L552, a real Cortex-M33 with TrustZone-M. Counters: DWT gives us cycle count, CPI, load-store count, and folded instructions. Faults: debugger-based injection for repeatability, optionally voltage glitching for realism. Detection: multi-checkpoint fusion; we'll revisit Stein's Lemma for combining p-values without multiplying false alarms. Alarm: TrustZone-M lockout, not just a loop. Data: larger glitched-boot datasets. Comparison: benchmark against redundant execution. Phase 2 is about 400 hours."
+**Figure:** slide23_phase2_questions.png. Seven rows: a Phase 1 limit on the left, the Phase 2 question on the right. Three right-hand items are marked (*).
 
----
+**Say:** "Each thing Phase 1 could not show becomes something Phase 2 will measure. Faults were compile-time macros, so: does a real glitch change timing like a skipped loop? QEMU's timer hides partial skips, so we need the real severity curve with DWT counters. The floor needs about a 60% cut and is blind to extra work. Host timing spikes broke Mahalanobis, so: do spikes exist on silicon? Faults were only at CP1, CP3 and CP7. The same code ran up to 28% differently across builds. And we have per-checkpoint rules only, so we want multi-checkpoint fusion that does not multiply false alarms."
 
-### Slide 25: Summary
-**Figure:** `slide25_summary.png`
+**Watch out:** The three (*) items follow from the Phase 1 limits but are not yet written in STATUS.md Section 7. Say so, and confirm them with your mentor before the review.
 
-Four-stage journey diagram (same as slide 6 roadmap, with results added per stage). Bottom text: "Lesson: skipped loops shorten a stage and spikes lengthen it, so a one-sided test wins. Extra work (FT-5) is the exception."
+## Slide 24: The Phase 2 plan (45 s)
 
-**What to say:** (50 sec) "To summarize Phase 1: Stage 1 validated CUSUM in Python, but the faults were fake and it needed a 10-boot window. Stage 2 ported to C with fixed-point, caught all attacks, but 1.4% of clean boots alarmed due to slow spikes. Stage 3 scaled to 8 checkpoints and 6 fault types, but false alarms multiplied because Mahalanobis treats up and down the same. Stage 4 switched to a one-sided floor rule: zero false alarms, near-perfect detection for shortened stages, and Mahalanobis warns for the FT-5 outlier. The lesson: skipped loops shorten a stage and spikes lengthen it, so a one-sided test wins. Extra work is the exception. That's what Phase 1 delivered. Thank you."
+**Figure:** slide24_phase2_plan.png. Phase 1 stand-in on the left, Phase 2 replacement on the right: platform, counter, faults, detection, alarm response, data, comparison.
 
----
+**Say:** "Phase 2 replaces the stand-ins one by one. QEMU becomes an STM32L552 with TrustZone-M. SysTick becomes the DWT cycle, CPI, load-store and fold counters. Compile-time macros become debugger-based fault injection, optionally voltage glitching. One rule per checkpoint becomes multi-checkpoint fusion, and we revisit the Stein's Lemma bounds once we have hardware data. The infinite-loop alarm becomes a TrustZone-M lockout. We also want larger glitched-boot datasets and a comparison against redundant execution. The Phase 2 budget is about 400 hours."
 
-## Backup Slides
+## Slide 25: Summary (45 s)
 
-### B1: Stage 2 Slow-Boot Heatmap
-**Figure:** `backupB1_stage2_slow_boots.png`
+**Figure:** slide25_summary.png. The four stages again, each with its result, and the problem it exposed; Stage 3 highlighted.
 
-Heatmap of the 14 false-alarm boots from Stage 2, showing their boot ID, MD, and which sub-stage value was highest (colored from normal to extreme).
-
-**Use if asked:** "Here's a closer look at the 14 slow boots. Boot 280: MD 120.7, sub_c was 6.2x the median. Boot 203: MD 92.9, sub_b was 5.3x. These are way above the attack's MD of 22.3. All 14 had at least one sub-stage more than 2x the median. These spikes don't exist in the 496-boot training set, which is why the model doesn't expect them."
+**Say:** "Stage 1: the idea works on simulated faults, AUC 0.9933, but the faults were not real. Stage 2: in C, 1000 of 1000 attacks caught, 14 of 1000 false alarms. Stage 3: widened to 8 checkpoints and 6 faults, it broke, and 14% of clean boots had timing spikes. Stage 4: a one-sided floor, 0 of 300 false alarms and 298 to 300 of 300 on the five skipped-loop faults. The lesson: skipped loops shorten a stage and spikes lengthen it, so a one-sided test wins. Extra work, FT-5, is the exception, and Phase 2 will test all of this on real hardware."
 
 ---
 
-### B2: Choosing F (Floor Fraction)
-**Figure:** `backupB2_stage4_choosing_f.png`
+# BACKUP SLIDES
 
-Three panels: (1) faults missed vs F (misses 94% at F=0.20, drops to 1.7% at F=0.30, under 0.5% from F=0.40 onward); (2) alarms at untouched checkpoints vs F (stays at 0% until F=0.50, then jumps to 1% at F=0.55 and 9.2% at F=0.70); (3) synthetic severity sweep (floor detection 0/26/33/96% at 30/40/50/60% cuts, reliable from about 60%).
+**B1: Stage 2 slow boots** (backupB1_stage2_slow_boots.png). Heat map of the 14 false-alarming boots, each cell a sub-stage time divided by the training mean. The slowest sub-stage of each is 1.5 to 6.2 times normal; the lowest cell anywhere is 0.91, so none of these boots was fast. Likely cause: host pausing QEMU (not confirmed). The training set held 0 spiked boots in 496; the halting build probably dropped its own alarm boots (fits the data, not proven). Across two runs, 23 of 2,000 clean boots false-alarmed (about 1%).
 
-**Use if asked:** "The usable range for F is 0.30 to 0.50. Below 0.30, too many faults slip through. Above 0.50, healthy checkpoints start alarming. At F = 0.45, we miss less than 1% of real faults and the alarm rate at untouched checkpoints is zero. The right-hand panel shows synthetic cuts to CP3 sub_b: the floor catches about 26% of 40% cuts, 96% of 60% cuts. Because QEMU's timer follows host time, partial skips are invisible (ISSUE-012), so this is an upper bound. On hardware with DWT, we'll measure the real curve."
+**B2: Choosing F** (backupB2_stage4_choosing_f.png). Held-out sweep. Below 0.30 faults slip through: the worst fault is missed 1.7% of the time at 0.30, 36% at 0.25, 94% at 0.20. From 0.30 to 0.50 nothing alarms at an untouched checkpoint. Above that healthy checkpoints alarm: 1% at 0.55, 5% at 0.60. The lowest healthy sub-stage in clean data is 0.68 of its median, and an untouched sub-stage in a fault build reached 0.51, so 0.45 sits just under that. F was chosen after seeing the fault data. The right-hand panel is synthetic (ISSUE-012).
 
-**Honesty note:** F was chosen after seeing the fault data, not blind. The fresh boots validated the calibration, not the choice of F itself.
+**B3: Fixed-point details.** Q16.16 resolution is 0.0000153, so the matrix entry 0.001665 is stored as 109 and reads back as 0.001663. The first firmware used the Python values (k 1.53, H 13.84), which meant it alarmed only above MD 15.37. On 10 Nov we switched to the one-shot rule (k = 0, H = 1.25 x largest clean MD).
 
----
+**B4: Timer guard.** Under heavy host load QEMU's timer can wrap or stall and report zeros, which a floor would read as a skipped loop. In an earlier 60-boot load test, 28 boots had no usable readings and the floor alarmed on 27 of the 60 (from a note made at the time; no raw data was saved). `timer_ok` checks that elapsed time rises, stays under 2^24 and covers the three sub-stages; if not, both detectors skip that checkpoint and print `TIMER_INVALID`. It fails open, and it never fired in validation, so the skip path is untested in firmware (ISSUE-019).
 
-## Likely Questions and Answers
+**B5: The six fault builds.** Attack: CP3 sub_b, about 89% shorter. FT-1: CP1 sub_b, about 86%. FT-2: CP3 sub_c, about 83%. FT-3: CP7 sub_a, about 78%. FT-4: CP3 sub_a and sub_b, about 82% and 89%. FT-5: CP3 sub_c, about 84% longer. Details in [FAULT_MODELS.md](../FAULT_MODELS.md).
 
-**Q1: Why didn't you test on real hardware in Phase 1?**
-A: Phase 1 was algorithm development. Emulation let us iterate fast without waiting for hardware bring-up. We collected 2,100 boots in Phase 1; doing that in a debugger with manual fault injection would have taken weeks per experiment. Phase 2 moves to STM32L552 now that the detector design is validated.
+**B6: Same code, different speed (ISSUE-016).** CP3 sub_b has a median of 828 in the clean, FT-2, FT-3 and FT-5 builds but 598 in the FT-1 build. Rebuilding the same sources shifted CP3 sub_b by up to 22%, and re-running one binary five minutes later shifted a sub-stage median by up to 18%. The cause is unknown. Consequence: calibrate on the same build you test, and keep F at or below 0.50.
 
-**Q2: How do you know the spikes are from the host and not the firmware?**
-A: We don't, definitively. The spikes only appeared when we switched from the halting firmware (which alarms and stops) to collect mode (which records and continues). The timing pattern — one sub-stage 3 to 6 times longer while the others stay normal — suggests a host pause, not firmware branching. Phase 2 on silicon will test whether spikes exist there.
+**B7: Scope against the proposal** (STATUS.md Section 5). Done early: Q16.16 fixed-point C port and halting on alarm. Partial: simulation environment with fault injection (compile-time macro, no QEMU plugin), 3-dimensional timing vectors at 8 checkpoints instead of 5-dimensional PMU vectors at 10, footprint measured but latency not. Not done: 10,000 glitched boots at 5 severity levels, Stein's Lemma bounds, TrustZone-M lockout, comparison against redundant execution.
 
-**Q3: What happens if the attacker glitches the detector itself?**
-A: The detector runs after every stage, so glitching it would itself be a timing anomaly. The floor rule is 3 lines of C; there are no loops to skip in floor_check. The Mahalanobis code has loops, but they're fixed-iteration (3 elements, 7 checkpoints). A glitch that breaks the loop would either crash (out-of-bounds read) or produce a nonsense distance, likely triggering the 4096-cycle ceiling. That said, we haven't explicitly tested this. It's on the Phase 2 list.
-
-**Q4: Why does the floor rule miss FT-5?**
-A: FT-5 adds 50 iterations to CP3 sub_c instead of removing them. That makes the stage 84% longer, not shorter. The floor only alarms when a value is below its threshold, so it can't catch extra work. Mahalanobis sees it because MD measures distance in any direction. That's why we kept both rules: floor for shortened stages (zero false alarms), Mahalanobis for the FT-5 outlier (some false alarms, but acceptable as a warning).
-
-**Q5: What's the 1.25 factor in the one-shot threshold?**
-A: It's a margin. The threshold H = 1.25 × max clean MD. Without the margin, the largest clean boot would sit exactly on the threshold, and any noise would cause a false alarm. 1.25 gives a 25% buffer. We chose it empirically: 1.1 gave too many false alarms in Stage 2, 1.5 missed some attacks in early tests, 1.25 worked. Phase 2 will revisit this with cross-validation on hardware.
-
-**Q6: Can the attacker train the model with glitched boots to poison it?**
-A: The model is calibrated offline during manufacturing or firmware provisioning, then compiled into the ROM. An attacker with physical access during boot can glitch the boot, but they can't rewrite the calibration data in ROM. If they could rewrite ROM, they wouldn't need a glitch — they'd just replace the firmware. The threat model is: attacker has transient physical access (glitching equipment) but not persistent write access to boot ROM.
-
-**Q7: Why did the same code run 28% differently across builds (ISSUE-016)?**
-A: We don't know. The source, compiler flags, and hardware are identical. It's not the glitch: it happens in clean boots too, and across builds with different faults. It's not optimization non-determinism: the .elf binaries are bit-identical across re-compiles of the same source. Our hypothesis: QEMU's instruction timing model has some hidden state that shifts between builds, or the host's CPU governs timing in a way that depends on the binary's layout. Phase 2 on hardware will show whether this is real or an emulator artifact.
-
-**Q8: What's the false-alarm rate across a real boot?**
-A: In Stage 4, the floor rule had 0 false alarms in 300 clean boots (95% CI: 0 to 1.3%). Mahalanobis had 17/300 = 5.7%, but it only warns at CP3, doesn't halt. Across 7 monitored checkpoints, 7 of 293 clean boots got a Mahalanobis warning somewhere. The floor never halted a clean boot. Phase 2 will measure this on hardware with larger datasets.
-
-**Q9: How does this compare to redundant execution?**
-A: We haven't implemented redundant execution yet. That's a Phase 2 task. Conceptually, redundant execution repeats critical sections twice and compares the results. It catches faults that change control flow or data, but doubles execution time for those sections. The floor rule runs once and adds about 21 comparisons (7 checkpoints × 3 sub-stages) plus the table lookup. In Phase 2 we'll measure overhead and compare detection rates side-by-side.
-
-**Q10: Why is F = 0.45 the right choice, not 0.40 or 0.50?**
-A: It's not "the" right choice, it's "a" valid choice. The usable range is 0.30 to 0.50. At F = 0.30, we miss 1.7% of faults (the mildest cuts). At F = 0.50, we start getting alarms at healthy checkpoints (1% by F = 0.55). F = 0.45 is in the middle of that range: it misses under 0.5% of faults and causes zero healthy-checkpoint alarms in our data. The trade-off is between "catch the mildest faults" and "don't alarm on a spike in an untouched stage." We chose to lean toward catching faults.
+**B8: Papers behind the literature survey** (backupB8_literature_references.png). Use when the panel asks "which papers did you read?". Two to three lines per paper are in [LITERATURE_PAPERS_README.md](LITERATURE_PAPERS_README.md). All 20 papers of the survey, numbered P1 to P20 as in the survey, with first author, year, title and venue. The four papers shown on slide 3 (P2 He, P5 Lee, P6 Geier, P11 Muttaki) carry a blue dot. Authors, years and venues were read from each paper's own PDF in `Literature_Survey/papers/`. Three things to know if asked:
+- P19 (Luo, Luo, Fei, 2016) is a hardware clock-glitch detector, directly relevant prior work; its PDF is a preprint with no venue stated, so the slide says so.
+- P12 (Obermaier et al.) is listed as "Applied Electronics 2017" from its DOI prefix (10.23919/AE.2017) and the University of West Bohemia ISBN in the PDF; the PDF text does not spell the conference name out.
+- The survey's own reference list (Section 8 of `COMPREHENSIVE_LITERATURE_SURVEY.md`) has wrong author names for most papers and "Conference/Journal TBD" for almost all. This slide follows `papers_list.csv` and the PDFs instead, so do not read names from the survey file.
 
 ---
 
-## Delivery Notes
+# LIKELY QUESTIONS
 
-1. **Timing discipline:** This deck can run long if you elaborate. Stick to 1 minute per slide in Part B (stages). The figures do the explaining; your words add context and link slides together.
+**Is this novel?** Within the 20 papers surveyed, yes: none combines statistical detection with on-chip timing in a boot ROM. Our firmware is a one-shot threshold; sequential accumulation is Phase 2. We have not done a systematic prior-art search yet.
 
-2. **Pointer to figures:** When presenting, refer to the figure explicitly. "On the left, you see..." "The orange dots are..." People miss details if you don't direct their eyes.
+**Why not use a hardware sensor?** Sensors need FPGA or ASIC primitives and per-platform calibration. Ours is a firmware update, and the trade-off is detection latency and generality.
 
-3. **Honesty first:** The Phase 1 limits are not failures, they're boundaries. Frame them as "what we learned" and "what Phase 2 will test," not "what went wrong." The panel respects honesty more than perfection.
+**How does it compare with CompaSeC?** Different goal: CompaSeC prevents attacks with redundancy, we detect them from timing. The numbers are not comparable (RISC-V with synthesised faults against Cortex-M33 in QEMU with simulated skipped loops).
 
-4. **Status.md is the source of truth:** If a number here ever conflicts with STATUS.md, STATUS.md wins. During your talk, you can say "the full results are in STATUS.md, Section 2" if asked for more detail.
+**Does QEMU predict hardware?** Not yet. Its SysTick follows wall-clock time, not executed work, so partial skips are invisible (ISSUE-012). That is why DWT counters on the STM32L552 are the first Phase 2 step.
 
-5. **The three "(*)" rows on slide 23:** Explicitly say "these three follow from the Phase 1 results but aren't yet written in STATUS.md Section 7; I'll confirm them with my mentor." Don't present them as decided facts.
+**Where do the false alarms come from?** Timing spikes: one or two sub-stages far too slow. The likely cause is the host pausing QEMU; we have not confirmed it. Phase 2 will show whether spikes exist on silicon.
 
-6. **FT-5 exception:** Mention it every time you say "faults make stages shorter": "except FT-5, which adds work." It's the one counterexample, and ignoring it would be dishonest.
+**Why not just tune the Mahalanobis threshold?** We tried (slide 18). A looser threshold, a robust fit and trimming spiked training boots either miss faults or raise false alarms to 2.3% at CP3 and about 16% across CP1 to CP7. The score ranks faults well, with AUC 0.97 to 0.98; the problem is that no cutoff separates faults from spikes.
 
-7. **Build-to-build variation (ISSUE-016):** If asked, say "we measured it, we don't have an explanation yet, Phase 2 will test whether it exists on hardware." Don't speculate during the talk.
+**Why F = 0.45?** The usable window is 0.30 to 0.50 (backup B2). We chose 0.45 after seeing the fault data, so the fresh boots validate the calibration, not the choice of rule.
 
-8. **Figure 3 vs shipped model:** The Stage 4 results figures (slides 20, 22) show the calibration model and fresh validation boots. The shipped firmware in src/ has a slightly different model (from data/cal_clean.csv, H = 7.487). The methods are identical; the numbers differ by about 10%. If asked, say "the methods are the same; the plot uses one dataset and the firmware uses another, both from the same experimental setup."
+**What does the floor miss?** Longer stages (FT-5, 0 of 300), mild faults (it needs about a 60% cut), faults at checkpoints we did not inject (CP2, CP4, CP5, CP6), and any new binary until its table is regenerated.
 
-9. **Questions you can't answer:** "That's a Phase 2 question" is a valid answer. Don't guess.
+**Where does 1.25 come from?** It is a margin over the largest clean distance, set as `MARGIN = 1.25` in `calibrate_firmware.py`. I found no record of a sweep over it in the notes, so do not claim it is optimal or was tuned; say it is a fixed margin. STATUS.md Section 6 gives the sensitivity of the frozen threshold: it needs roughly a 40 to 50% `sub_b` reduction before it alarms.
 
-10. **Rehearse the lesson:** The lesson on slide 25 is the punchline. "Skipped loops shorten a stage and spikes lengthen it, so a one-sided test wins. Extra work is the exception." Practice saying it out loud until it's automatic.
+**Can an attacker glitch the detector itself?** Nothing in the Phase 1 notes tests that. The detector is ordinary code with no redundancy, like the signature check. Real fault injection and the TrustZone-M lockout are where that belongs, in Phase 2.
+
+**Why did the Mahalanobis false-alarm rate differ between runs (2.3% against 5.7%)?** Both are single runs on different days with different binaries, and we do not explain the gap. The floor had 0 false alarms in both.
+
+**How much effort?** See STATUS.md Section 4. The 600 hours there are an allocation, not a time log.
 
 ---
 
-## Final Checklist
+# DELIVERY NOTES
 
-Before the review:
+1. **Point at the figure.** Say "the orange dots", "the shaded zone", "the highlighted row". Do not read the slide.
+2. **One honest line per stage.** Stage 1: faults were not real. Stage 2: one fault, one checkpoint. Stage 3: our own first dataset was invalid. Stage 4: F was chosen after seeing the faults. The panel trusts you more for saying these first.
+3. **Say the FT-5 exception** every time you say "faults make stages shorter".
+4. **Say that the numbers differ between data sets.** Medians are 742/828/572 on slides 4 and 17 and 690/668/522 on slide 20, because they come from different collection runs (ISSUE-016).
+5. **Do not mix firmware generations.** The 1000-boot results (slides 11, 14) are the frozen 4-checkpoint firmware. The 300-boot results (slides 15 to 22) are the current 8-checkpoint firmware.
+6. **Do not quote the literature numbers as comparisons.** They are on different platforms and fault models.
+7. **"That is a Phase 2 question"** is a fine answer when it is true. Do not guess.
 
-- [ ] Render all 26 figures (`python3 review/figures/make_story_figures.py` from pmu_bootrom/)
-- [ ] Insert figures into your slide deck (PowerPoint, Beamer, Google Slides)
-- [ ] Verify the numbers on slides 10, 14, 16, 22 match STATUS.md Section 2
-- [ ] Spot-check the literature survey numbers (slide 3) against the original papers
-- [ ] Confirm the three "(*)" Phase 2 items (slide 23) with your mentor
-- [ ] Add the calibration-drift footnote to slide 20 (it's in the figure)
-- [ ] Add the FT-5 exception note to slide 19 subtitle (it's in the figure)
-- [ ] Rehearse out loud once, time yourself, adjust if over 23 minutes
-- [ ] Print or bookmark STATUS.md, KNOWN_ISSUES.md, and this guide for reference during Q&A
+# BEFORE THE REVIEW
 
-Good luck. You built something that works, you know its limits, and you're honest about both. That's what a review panel wants to see.
+- [ ] Insert the 25 figures in order. Regenerate them if you change the script.
+- [ ] Spot-check the literature numbers on slide 3 against the PDFs (LITERATURE_SLIDES.md says they have not been checked against the PDF text).
+- [ ] Confirm the three (*) rows on slide 23 with your mentor.
+- [ ] Re-check the numbers on slides 10, 14, 16, 20 and 22 against STATUS.md.
+- [ ] Time one full rehearsal. It should come to about 20 minutes.
+- [ ] [PPT_OUTLINE.md](PPT_OUTLINE.md), [DEMO_SCRIPT.md](DEMO_SCRIPT.md) and [SLIDE_GUIDE.md](SLIDE_GUIDE.md) are older, 4-checkpoint versions. Use this guide instead.

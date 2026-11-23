@@ -60,7 +60,7 @@ Boot-time security checks are successfully attacked on commercial devices:
 | **Hardware sensors** | Ring-oscillator/PLL sensor (He et al., ASP-DAC 2017) | 92.82% detection, Virtex-5 FPGA | Needs FPGA/ASIC primitives |
 | | Fault-to-time converter (Muttaki et al., HOST 2022) | 64-stage delay line; 0.4% LUTs on Zynq; covers glitch, laser, optical, EM | Silicon area; per-platform calibration |
 | | Clock-glitch detector (Luo et al., 2016) | 7.9% registers / 7.1% LUTs on FPGA; 4.63% area on ASIC | Hardware only, clock only |
-| **Software redundancy** | CompaSeC (Geier et al., ICCAD 2023) | No remaining successful attacks; 0.21% (selective) to 484% (full) overhead | Prevents rather than detects; RISC-V compiler |
+| **Software redundancy** | CompaSeC (Geier et al., ASP-DAC 2023) | No remaining successful attacks; 0.21% (selective) to 484% (full) overhead | Prevents rather than detects; RISC-V compiler |
 | **Algorithm-level checks** | Loop and inverse-function checks (Lee et al., Sensors 2025) | 92.56% detection on STM32F303 | Per function |
 | **This project** | Statistical timing detector in boot ROM | See slide L3 | Platform and fault limits on L3 |
 
@@ -164,7 +164,7 @@ Use these correct author names (from `papers_list.csv`) when citing papers:
 - **P2:** He, Breier, Bhasin, Miura, Nagata, ASP-DAC 2017
 - **P3:** Dadjou thesis 2013
 - **P5:** Lee, Kim, Hong, Ha, Sensors 2025
-- **P6:** Geier, Auer, Mueller-Gritschneder, Sharif, Schlichtmann, ICCAD 2023
+- **P6:** Geier, Auer, Mueller-Gritschneder, Sharif, Schlichtmann, ASP-DAC 2023
 - **P7:** Malik, Mihir, Aysu (CRAFT), arXiv 2025
 - **P10:** Van den Herrewegen, Oswald, Garcia, Temeiza, TCHES 2021
 - **P11:** Muttaki, Zhang, Tehranipoor, Farahmandi, HOST 2022

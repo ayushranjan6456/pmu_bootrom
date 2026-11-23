@@ -88,7 +88,7 @@ def diamond(ax, cx, cy, w, h, text, fc=SURFACE, ec=BASE, lw=1.5, fs=12):
     ax.text(cx, cy, text, ha="center", va="center", fontsize=fs, zorder=3, linespacing=1.25)
 
 
-def journey(ax, results):
+def journey(ax, results, top=55.0):
     """Four-stage chain: roadmap (questions only) and summary (with results)."""
     stages = [
         ("STAGE 1", "Python simulation", "Can timing alone\nreveal a skipped loop?",
@@ -104,7 +104,7 @@ def journey(ax, results):
          "0 / 300 false alarms\n298 to 300 / 300 on five\nskipped-loop faults",
          "Real glitches, hardware\ncounters and more\ncheckpoints (Phase 2)"),
     ]
-    w, gap, top = 27.0, 6.6, 55.0
+    w, gap = 27.0, 6.6
     for i, (tag, name, q, res, why) in enumerate(stages):
         x = 1.0 + i * (w + gap)
         hot = i == 2 and results
@@ -165,7 +165,7 @@ def s03():
         ("HARDWARE SENSOR", "0.4%", "of the FPGA's LUTs (Zynq);\ncovers glitch, laser,\noptical, EM",
          "Limit: silicon area and\nper-platform calibration", "Muttaki et al., HOST 2022", False),
         ("SOFTWARE REDUNDANCY", "0.21 to 484%", "overhead, selective to full\ncoverage; no remaining\nsuccessful attacks",
-         "Limit: prevents rather\nthan detects; RISC-V", "Geier et al., ICCAD 2023", False),
+         "Limit: prevents rather\nthan detects; RISC-V", "Geier et al., ASP-DAC 2023", False),
         ("ALGORITHM CHECK", "92.56%", "detection on an\nSTM32F303",
          "Limit: works one\nfunction at a time", "Lee et al., Sensors 2025", False),
         ("THIS PROJECT", "firmware only", "statistical timing\ndetector inside the\nboot ROM",
@@ -270,7 +270,8 @@ def s05():
 @fig("slide06_roadmap")
 def s06():
     f, ax = canvas(13, 5.2)
-    journey(ax, results=False)
+    ax.text(1.5, 49, "Phase 1 in four stages: the question each one asked and what went wrong", fontsize=14.5, fontweight="bold", va="center")
+    journey(ax, results=False, top=43.0)
     ax.text(65, 3.2, "Each stage ends with something that did not work, and that is what starts the next one.",
             fontsize=13, ha="center", color=INK)
     return f
@@ -787,7 +788,7 @@ def _ds1(name):
 @fig("slide16_stage3_collapse")
 def s19():
     f, ax = plt.subplots(figsize=(13, 5.6))
-    f.subplots_adjust(left=0.30, right=0.93, top=0.80, bottom=0.14)
+    f.subplots_adjust(left=0.30, right=0.93, top=0.80, bottom=0.21)
     rows = [("Stage 2 result\n(4-checkpoint, 1000 boots)", 100.0, "1000 / 1000", BLUE),
             ("Attack (CP3)", 100 / 300, "1 / 300", MAHA), ("FT-1 (CP1)", 0.0, "0 / 300", MAHA),
             ("FT-2 (CP3)", 0.0, "0 / 300", MAHA), ("FT-3 (CP7)", 100 * 3 / 300, "3 / 300", MAHA),
@@ -808,9 +809,9 @@ def s19():
     f.text(0.03, 0.93, "Stage 3 result: the same rule, on 8 checkpoints, sees almost nothing", fontsize=15, fontweight="bold")
     f.text(0.03, 0.875, "Same method as Stage 2: one Gaussian per checkpoint, H = 1.25 x largest clean distance. Offline, in-sample, 300 boots per build.",
            fontsize=11.2, color=INK2)
-    f.text(0.60, 0.40, "The faults are as large as before:\neach skipped loop removes 78 to 89%\nof that sub-stage's time.\n"
-           "The detector simply stopped seeing them.", fontsize=12.5, linespacing=1.45, va="top")
-    f.text(0.03, 0.045, "The top bar is a different test (frozen firmware, 1000 boots); the other bars are the 8-checkpoint data.",
+    f.text(0.58, 0.55, "The faults are as large as before:\neach skipped loop removes 78 to 89%\nof that sub-stage's time (FT-5 adds 84%).\n"
+           "Median distance of a faulted boot: 2.5 to 7.1.\nThresholds: 17.6 to 20.9.", fontsize=12.5, linespacing=1.45, va="top")
+    f.text(0.03, 0.035, "The top bar is a different test (frozen firmware, 1000 boots); the other bars are the 8-checkpoint data.",
            fontsize=10.5, color=INK2)
     return f
 
@@ -840,7 +841,9 @@ def s20():
         a1.annotate(f"boot {bid}\nMD {md[ids == bid][0]:.1f}", xy=(r, md[ids == bid][0]), xytext=(r + 22, md[ids == bid][0] + (1.0 if bid == 280 else 3.6)),
                     fontsize=10.5, arrowprops=dict(arrowstyle="-", color=INK2))
     n_above = int((md > amed).sum())
-    a1.text(150, 8.0, f"{n_above} of 300 clean boots score\nhigher than the attack's median", fontsize=11.5, linespacing=1.35)
+    med3 = np.median(X, axis=0)
+    n_spk = int(((X[md > amed] > 1.5 * med3).any(axis=1)).sum())
+    a1.text(120, 8.0, f"{n_above} of 300 clean boots score\nhigher than the attack's median\n({n_spk} of them have a spiked sub-stage)", fontsize=11.5, linespacing=1.35)
     a1.set_xlim(-3, 300)
     a1.set_ylim(0, 22)
     a1.set_xlabel("the 300 clean boots at CP3, sorted by distance")
@@ -923,7 +926,7 @@ def s21():
     a2.set_title("Trimming spikes: detection returns, false alarms grow", loc="left", fontsize=12.5)
     a2.legend(loc="upper left", fontsize=9.8)
     f.text(0.07, 0.93, "Stage 3: watching more checkpoints multiplies the false alarms", fontsize=15, fontweight="bold")
-    f.text(0.07, 0.885, "300 clean boots, per-checkpoint Gaussian, held-out over four splits. Trimming spiked training boots helps detection at CP3, but false alarms stay.",
+    f.text(0.07, 0.885, "300 clean boots, per-checkpoint Gaussian, held-out over four splits. Trimming spiked training boots helps detection at CP3, but false alarms grow.",
            fontsize=11, color=INK2)
     return f
 
@@ -963,9 +966,9 @@ def s22():
     ax.grid(True, axis="x")
     ax.grid(False, axis="y")
     ax.legend(loc="upper right", fontsize=10.5)
-    f.text(0.09, 0.93, "Stage 4: skipped loops only go down, spikes only go up, so test the down side", fontsize=15, fontweight="bold")
-    f.text(0.09, 0.885, "Skipped loops make a stage shorter and spikes make it longer. A one-sided floor ignores the spikes entirely.\nException: FT-5 adds an extra loop (+84%), and only Mahalanobis detects it.",
-           fontsize=11.5, color=INK2, linespacing=1.4)
+    f.text(0.09, 0.945, "Stage 4: skipped loops only go down, spikes only go up, so test the down side", fontsize=15, fontweight="bold")
+    f.text(0.09, 0.895, "Skipped loops make a stage shorter and spikes make it longer. A one-sided floor ignores the spikes entirely.\nException: FT-5 adds an extra loop (+84%), and only Mahalanobis detects it.",
+           fontsize=11.5, color=INK2, linespacing=1.4, va="top")
     return f
 
 
@@ -1008,14 +1011,14 @@ def s23():
     rows = [("", "sub_a", "sub_b", "sub_c"), ("clean median (cal. boots)", "690.5", "668", "522"), ("x 0.45, rounded down", "310", "300", "234"),
             ("clean boot", "783", "860", "656"), ("clean, spiked (boot 203)", "764", "3790", "579"), ("attack boot", "583", "93", "542")]
     for i, row in enumerate(rows):
-        yy = 5.3 - i * 0.70
+        yy = 5.3 - i * 0.62
         for j, t in enumerate(row):
             hot = i == 5 and j == 2
             r.text([0.1, 5.3, 6.9, 8.5][j], yy, t, fontsize=11, va="center", fontweight="bold" if (i == 0 or hot) else "normal",
                    color=ORANGE if hot else INK)
-    r.text(0.1, 0.55, "Attack: 93 < 300, so the floor halts the boot.", fontsize=11, va="center", fontweight="bold")
-    r.text(0.1, -0.1, "Spiked boot: every value above its floor, so it continues.", fontsize=11, va="center", fontweight="bold")
-    r.text(0.1, -0.85, "Size: code 92 bytes + table 48 bytes = 140 bytes. No multiplies, no square root.", fontsize=11, color=INK2, va="center")
+    r.text(0.1, 1.35, "Attack: 93 < 300, so the floor halts the boot.", fontsize=11, va="center", fontweight="bold")
+    r.text(0.1, 0.65, "Spiked boot: every value above its floor, so it continues.", fontsize=11, va="center", fontweight="bold")
+    r.text(0.1, -0.05, "Size: code 92 bytes + table 48 bytes = 140 bytes. No multiplies, no square root.", fontsize=11, color=INK2, va="center")
     return f
 
 
@@ -1190,6 +1193,55 @@ def s29():
     journey(ax, results=True)
     ax.text(65, 2.4, "Lesson: skipped loops shorten a stage and spikes lengthen it, so a one-sided test wins.\nExtra work (FT-5) is the exception.",
             fontsize=13, fontweight="bold", ha="center", va="center", linespacing=1.4)
+    return f
+
+
+@fig("backupB8_literature_references")
+def s30():
+    import textwrap
+    refs = [
+        ("Kazemi et al.", 2020, "A Review on Evaluation and Configuration of Fault Injection Attack Instruments to Design Attack Resistant MCU-Based IoT Applications", "Electronics 9(7), 1153", False),
+        ("He et al.", 2017, "An FPGA-compatible PLL-based sensor against fault injection attack", "ASP-DAC 2017", True),
+        ("Dadjou", 2013, "Analysis and Design of Clock-glitch Fault Injection within an FPGA", "M.A.Sc. thesis, Univ. of Waterloo", False),
+        ("Kaur, Singh, Kaur", 2020, "Analytical Classifications of Side Channel Attacks, Glitch Attacks and Fault Injection Techniques: Their Countermeasures", "Indo-Taiwan ICAN 2020", False),
+        ("Lee et al.", 2025, "Clock Glitch Fault Attacks on Deep Neural Networks and Their Countermeasures", "Sensors 25(9), 2793", True),
+        ("Geier et al.", 2023, "CompaSeC: A Compiler-assisted Security Countermeasure to Address Instruction Skip Fault Attacks on RISC-V", "ASP-DAC 2023", True),
+        ("Malik, Mihir, Aysu", 2025, "CRAFT: Characterizing and Root-Causing Fault Injection Threats at Pre-Silicon", "arXiv:2503.03877", False),
+        ("Abbaspour et al.", 2016, "Detection of Fault Data Injection Attack on UAV Using Adaptive Neural Network", "Procedia Comput. Sci. 95, 193-200", False),
+        ("Esmaeilian, Beitollahi", 2024, "Experimental evaluation of RISC-V micro-architecture against fault injection attack", "Microprocess. Microsyst. 104, 104991", False),
+        ("Van den Herrewegen et al.", 2021, "Fill your Boots: Enhanced Embedded Bootloader Exploits via Fault Injection and Binary Analysis", "IACR TCHES 2021(1), 56-81", False),
+        ("Muttaki et al.", 2022, "FTC: A Universal Sensor for Fault Injection Attack Detection", "IEEE HOST 2022", True),
+        ("Obermaier, Specht, Sigl", 2017, "Fuzzy-glitch: A practical ring oscillator based clock glitch attack", "Applied Electronics (AE) 2017", False),
+        ("Hsiao et al.", 2026, "Glitch in the Sky: Exploiting Voltage Fault Injection in UAV Flight Controllers", "arXiv:2604.16699", False),
+        ("Lu", 2019, "Injecting Software Vulnerabilities with Voltage Glitching", "arXiv:1903.08102", False),
+        ("Alshaer et al.", 2023, "Microarchitectural Insights into Unexplained Behaviors Under Clock Glitch Fault Injection", "CARDIS 2023, pp. 1-20", False),
+        ("Selmke, Hauschild, Obermaier", 2019, "Peak Clock: Fault Injection into PLL-Based Systems via Clock Manipulation", "ASHES 2019 (ACM)", False),
+        ("Gomes da Silva", 2014, "Practical analysis of embedded microcontrollers against clock glitching attacks", "B.Sc. thesis, TU Berlin", False),
+        ("Bozzato, Focardi, Palmarini", 2019, "Shaping the Glitch: Optimizing Voltage Fault Injection Attacks", "IACR TCHES 2019(2), 199-224", False),
+        ("Luo, Luo, Fei", 2016, "System Clock and Power Supply Cross-Checking for Glitch Detection", "preprint; venue not stated in the PDF", False),
+        ("Bittner et al.", 2021, "The Forgotten Threat of Voltage Glitching: A Case Study on Nvidia Tegra X2 SoCs", "FDTC 2021", False),
+    ]
+    f, ax = canvas(13, 7.6)
+    ax.text(1.5, 73.6, "Papers behind the literature survey (20)", fontsize=14.5, fontweight="bold", va="center")
+    ax.scatter([95.5], [73.6], s=38, color=BLUE, zorder=5)
+    ax.text(97.2, 73.6, "shown on the literature slide (slide 3)", fontsize=10, color=INK2, va="center")
+    yh = 69.0
+    for x, t in ((1.5, "#"), (8.3, "First author (year)"), (34, "Title"), (99, "Venue")):
+        ax.text(x, yh, t, fontsize=9.6, fontweight="bold", color=INK2, va="center")
+    ax.plot([1.0, 129], [yh - 1.5, yh - 1.5], color=BASE, lw=1)
+    pitch, y0 = 3.0, 65.4
+    for i, (au, yr, title, venue, on3) in enumerate(refs):
+        yc = y0 - i * pitch
+        if i % 2 == 0:
+            ax.add_patch(plt.Rectangle((1.0, yc - pitch / 2), 128, pitch, fc="#f6f5f1", ec="none", zorder=0))
+        ax.text(1.5, yc, f"P{i + 1}", fontsize=9.2, fontweight="bold", va="center")
+        if on3:
+            ax.scatter([6.2], [yc], s=26, color=BLUE, zorder=5)
+        ax.text(8.3, yc, f"{au} ({yr})", fontsize=9.2, va="center")
+        ax.text(34, yc, textwrap.fill(title, 80), fontsize=9.2, va="center", linespacing=1.15)
+        ax.text(99, yc, venue, fontsize=9.2, va="center", color=INK2)
+    ax.text(1.5, 3.6, "Numbering follows the survey (P1 to P20). Authors are shortened to the first author plus \"et al.\" when there are more than three; "
+            "venues and years are taken from each paper's own PDF.", fontsize=9.6, color=INK2, va="center")
     return f
 
 
